@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Анализатор фьючерсов Bybit (Статистика)</title>
+    <title>Bybit Futures Analyzer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,8 +26,17 @@
         }
         .timeframe-btn.selected {
             background-color: #2563eb; /* blue-700 */
-            outline: 2px solid #3b82f6; /* blue-500 */
-            outline-offset: 2px;
+            color: white;
+        }
+        /* Animation styles */
+        .fade-up {
+            opacity: 0;
+            transform: translateY(15px);
+            transition: opacity 0.4s ease-out, transform 0.4s ease-out;
+        }
+        .fade-up.visible {
+            opacity: 1;
+            transform: translateY(0);
         }
     </style>
 </head>
@@ -36,60 +45,69 @@
     <div class="container mx-auto p-4 md:p-8">
         
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Статистический анализатор фьючерсов Bybit</h1>
-            <p class="text-gray-400">Выберите таймфрейм для анализа рыночной статистики</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Analyzer</h1>
+            <p class="text-gray-400">Select a timeframe to analyze market statistics</p>
         </header>
 
-        <!-- Панель управления -->
-        <div class="bg-gray-800 p-4 rounded-lg shadow-lg mb-6">
-            <div class="flex flex-wrap justify-center items-center gap-3 mb-4">
-                <span class="font-medium mr-4">Быстрый выбор:</span>
-                <button data-hours="1" class="timeframe-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">1 час</button>
-                <button data-hours="4" class="timeframe-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">4 часа</button>
-                <button data-hours="24" class="timeframe-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">24 часа</button>
-                <button data-hours="168" class="timeframe-btn bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md transition duration-300">7 дней</button>
+        <!-- Control Panel -->
+        <div class="bg-gray-800 p-5 rounded-lg shadow-lg mb-6 space-y-6">
+            <!-- Timeframe Selection Section -->
+            <div>
+                <label class="block mb-4 text-lg font-semibold text-white text-center">Select Timeframe</label>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+                    <!-- Preset Buttons -->
+                    <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
+                        <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
+                        <button data-hours="4" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
+                        <button data-hours="24" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
+                        <button data-hours="168" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
+                    </div>
+                    
+                    <div class="text-gray-500 font-medium hidden sm:block">or</div>
+
+                    <!-- Custom Input -->
+                    <div class="flex items-center gap-2">
+                         <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5" placeholder="12">
+                         <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center">
+                             <option value="minutes">Minutes</option>
+                             <option value="hours" selected>Hours</option>
+                             <option value="days">Days</option>
+                         </select>
+                         <button id="custom-time-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300">Analyze</button>
+                    </div>
+                </div>
             </div>
-             <!-- Пользовательский таймфрейм -->
-            <div class="mt-4 pt-4 border-t border-gray-700 flex flex-wrap justify-center items-center gap-2">
-                 <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5" placeholder="12">
-                 <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5">
-                     <option value="minutes">Минут</option>
-                     <option value="hours" selected>Часов</option>
-                     <option value="days">Дней</option>
-                 </select>
-                 <button id="custom-time-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-5 rounded-md transition duration-300">Анализ</button>
-            </div>
-             <!-- Поле для исключения токенов -->
-            <div class="mt-4 pt-4 border-t border-gray-700">
-                <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Исключить токены (через запятую)</label>
+            
+            <!-- Exclusions Section -->
+            <div class="pt-6 border-t border-gray-700/60">
+                <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
                 <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
             </div>
         </div>
 
-
-        <!-- Область для отображения результатов -->
+        <!-- Results Area -->
         <main id="content-area">
             <div id="loader" class="hidden flex-col items-center justify-center p-10">
                 <div class="loader mb-4"></div>
-                <p class="text-lg text-gray-400">Загрузка данных... Это может занять некоторое время.</p>
+                <p class="text-lg text-gray-400">Loading data... This may take a moment.</p>
             </div>
             <div id="error-message" class="hidden bg-red-900 border border-red-600 text-red-100 px-4 py-3 rounded-lg relative" role="alert">
-                <strong class="font-bold">Ошибка!</strong>
+                <strong class="font-bold">Error!</strong>
                 <span class="block sm:inline" id="error-text"></span>
             </div>
             
-            <!-- Контейнер для статистики и таблиц -->
+            <!-- Statistics and Tables Container -->
             <div id="results-dashboard" class="hidden">
-                <!-- Ключевые активы -->
+                <!-- Key Assets -->
                 <div id="key-tokens-container" class="mb-6"></div>
                 
-                <!-- Сводная статистика -->
-                <div id="summary-stats" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6"></div>
+                <!-- Summary Statistics -->
+                <div id="summary-stats" class="mb-6"></div>
 
-                <!-- Таблицы Top/Bottom -->
+                <!-- Top/Bottom Tables -->
                 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div id="top-10-container" class="bg-gray-800 rounded-lg shadow-lg overflow-hidden"></div>
-                    <div id="bottom-10-container" class="bg-gray-800 rounded-lg shadow-lg overflow-hidden"></div>
+                    <div id="top-10-container"></div>
+                    <div id="bottom-10-container"></div>
                 </div>
 
             </div>
@@ -97,7 +115,7 @@
     </div>
 
     <script type="module">
-        // --- DOM Элементы ---
+        // --- DOM Elements ---
         const loader = document.getElementById('loader');
         const errorMessage = document.getElementById('error-message');
         const errorText = document.getElementById('error-text');
@@ -112,12 +130,12 @@
         const top10Container = document.getElementById('top-10-container');
         const bottom10Container = document.getElementById('bottom-10-container');
 
-        // --- Bybit API Константы ---
+        // --- Bybit API Constants ---
         const API_BASE_URL = 'https://api.bybit.com';
         const INSTRUMENTS_INFO_ENDPOINT = '/v5/market/instruments-info?category=linear';
         const KLINE_ENDPOINT = '/v5/market/kline';
 
-        // --- Основная логика ---
+        // --- Main Logic ---
 
         function getExcludedTokens() {
             if (!excludeInput.value) return [];
@@ -135,10 +153,10 @@
         }
         
         function handleCustomTimeframeClick() {
-            updateSelectedButton(null); // Сбрасываем выделение с кнопок
+            updateSelectedButton(null); // Deselect preset buttons
             const value = parseFloat(customTimeInput.value);
             if (isNaN(value) || value <= 0) {
-                 showError("Пожалуйста, введите корректное число для таймфрейма.");
+                 showError("Please enter a valid positive number for the timeframe.");
                  return;
             }
             const unit = customTimeUnit.value;
@@ -168,7 +186,7 @@
 
                 const allSymbols = await fetchAllSymbols();
                 if (!allSymbols || allSymbols.length === 0) {
-                    throw new Error("Не удалось получить список торговых пар.");
+                    throw new Error("Failed to fetch the list of trading pairs.");
                 }
 
                 const priceChangePromises = allSymbols.map(symbol => getPriceChangeForSymbol(symbol, startTime, endTime));
@@ -179,7 +197,7 @@
                     .map(result => result.value);
 
                 if (allValidResults.length === 0) {
-                    throw new Error(`Нет данных для указанного периода.`);
+                    throw new Error(`No data available for the selected period.`);
                 }
 
                 const keySymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
@@ -207,7 +225,7 @@
                 renderDashboard(stats, top10, bottom10, keyTokenData, hours);
 
             } catch (error) {
-                console.error("Произошла ошибка:", error);
+                console.error("Analysis Error:", error);
                 showError(error.message);
             } finally {
                 hideLoader();
@@ -236,9 +254,9 @@
             while (true) {
                 const url = `${API_BASE_URL}${INSTRUMENTS_INFO_ENDPOINT}&limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`;
                 const response = await fetch(url);
-                if (!response.ok) throw new Error(`Ошибка API Bybit: ${response.statusText}`);
+                if (!response.ok) throw new Error(`Bybit API Error: ${response.statusText}`);
                 const data = await response.json();
-                if (data.retCode !== 0) throw new Error(`Ошибка в ответе API Bybit: ${data.retMsg}`);
+                if (data.retCode !== 0) throw new Error(`Bybit API Response Error: ${data.retMsg}`);
                 const symbolsOnPage = data.result.list
                     .filter(item => item.status === 'Trading' && item.symbol.endsWith('USDT'))
                     .map(item => item.symbol);
@@ -273,24 +291,46 @@
             return (data.retCode === 0 && data.result.list && data.result.list.length > 0) ? data.result.list[0] : null;
         }
 
-        // --- Функции для управления UI ---
+        // --- UI Rendering Functions ---
         function renderDashboard(stats, top10, bottom10, keyTokenData, hours) {
+            // Prepare containers for animation
+            const animatedElements = [keyTokensContainer, summaryStatsContainer, top10Container, bottom10Container];
+            animatedElements.forEach(el => {
+                el.innerHTML = ''; // Clear previous content
+                el.classList.add('fade-up');
+                el.classList.remove('visible');
+            });
+            
+            // Render new content into the containers
             renderKeyTokens(keyTokenData);
             renderSummaryStats(stats, hours);
-            top10Container.innerHTML = createChangeTable('🚀 Топ-10 роста', top10);
-            bottom10Container.innerHTML = createChangeTable('📉 Топ-10 падения', bottom10);
+            top10Container.innerHTML = createChangeTable('🚀 Top 10 Gainers', top10);
+            bottom10Container.innerHTML = createChangeTable('📉 Top 10 Losers', bottom10);
+
+            // Make the main dashboard container visible
             resultsDashboard.classList.remove('hidden');
+            
+            // Trigger staggered animation
+            animatedElements.forEach((el, index) => {
+                if (el.innerHTML.trim() !== '') {
+                    setTimeout(() => {
+                        el.classList.add('visible');
+                    }, index * 100); // 100ms delay for each element
+                }
+            });
         }
 
         function renderSummaryStats(stats, hours) {
             const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
             const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
             summaryStatsContainer.innerHTML = `
-                <h3 class="text-xl font-semibold text-white mb-4">Сводка по рынку за ${formatTimeframe(hours)} (без исключенных)</h3>
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                    <div><p class="text-sm text-gray-400">Проанализировано токенов</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
-                    <div><p class="text-sm text-gray-400">Average Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
-                    <div><p class="text-sm text-gray-400">Median Return</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
+                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
+                    <h3 class="text-xl font-semibold text-white mb-4">Market Summary for the last ${formatTimeframe(hours)} (Exclusions Applied)</h3>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                        <div><p class="text-sm text-gray-400">Analyzed Tokens</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
+                        <div><p class="text-sm text-gray-400">Average Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
+                        <div><p class="text-sm text-gray-400">Median Return</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
+                    </div>
                 </div>`;
         }
         
@@ -304,7 +344,7 @@
                 const color = item.change >= 0 ? 'text-green-500' : 'text-red-500';
                 const sign = item.change >= 0 ? '+' : '';
                 return `
-                    <div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-lg">
+                    <div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-lg transition-transform duration-200 hover:scale-105">
                         <div>
                             <p class="text-lg font-bold text-white">${item.symbol.replace('USDT', '')}</p>
                             <p class="text-xs text-gray-400">${item.startPrice} → ${item.endPrice}</p>
@@ -322,18 +362,20 @@
         }
 
         function createChangeTable(title, data) {
-            if (data.length === 0) return `<div class="bg-gray-800 rounded-lg shadow-lg p-4 text-center text-gray-500">${title}<br><br>Нет данных для отображения.</div>`;
+            if (data.length === 0) return `<div class="bg-gray-800 rounded-lg shadow-lg p-4 text-center text-gray-500">${title}<br><br>No data to display.</div>`;
             const tableRows = data.map(item => `
-                <tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-700/50">
+                <tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-200">
                     <th scope="row" class="px-4 py-3 font-medium text-white whitespace-nowrap">
                         <div>${item.symbol}</div><div class="text-xs text-gray-500">${item.startPrice} → ${item.endPrice}</div>
                     </th>
                     <td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td>
                 </tr>`).join('');
-            return `<table class="w-full text-sm text-left text-gray-400">
-                    <caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${title}</caption>
-                    <thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th scope="col" class="px-4 py-2">Символ</th><th scope="col" class="px-4 py-2 text-right">Изменение</th></tr></thead>
-                    <tbody>${tableRows}</tbody></table>`;
+            return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
+                        <table class="w-full text-sm text-left text-gray-400">
+                        <caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${title}</caption>
+                        <thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th scope="col" class="px-4 py-2">Symbol</th><th scope="col" class="px-4 py-2 text-right">Change</th></tr></thead>
+                        <tbody>${tableRows}</tbody></table>
+                    </div>`;
         }
 
         function showLoader() {
@@ -363,36 +405,23 @@
             }
         }
 
+        function getPlural(value, unit) {
+            const roundedValue = Math.round(value);
+            return `${roundedValue} ${roundedValue === 1 ? unit : unit + 's'}`;
+        }
+
         function formatTimeframe(totalHours) {
             if (totalHours < 1) {
-                const minutes = Math.round(totalHours * 60);
-                return `${minutes} ${getMinuteWord(minutes)}`;
+                return getPlural(totalHours * 60, 'minute');
             }
             if (totalHours < 24) {
-                 return `${totalHours} ${getHourWord(totalHours)}`;
+                 return getPlural(totalHours, 'hour');
             }
             const days = totalHours / 24;
-            return `${days} ${getDayWord(days)}`;
+            return getPlural(days, 'day');
         }
 
-        function getMinuteWord(n) {
-            const cases = [2, 0, 1, 1, 1, 2];
-            const titles = ['минуту', 'минуты', 'минут'];
-            return titles[(n % 100 > 4 && n % 100 < 20) ? 2 : cases[(n % 10 < 5) ? n % 10 : 5]];
-        }
-        function getHourWord(n) {
-            const cases = [2, 0, 1, 1, 1, 2];
-            const titles = ['час', 'часа', 'часов'];
-            return titles[(n % 100 > 4 && n % 100 < 20) ? 2 : cases[(n % 10 < 5) ? n % 10 : 5]];
-        }
-         function getDayWord(n) {
-            const cases = [2, 0, 1, 1, 1, 2];
-            const titles = ['день', 'дня', 'дней'];
-            return titles[(n % 100 > 4 && n % 100 < 20) ? 2 : cases[(n % 10 < 5) ? n % 10 : 5]];
-        }
-
-
-        // --- Назначение обработчиков событий ---
+        // --- Event Listeners ---
         timeframeButtons.forEach(button => button.addEventListener('click', handlePresetTimeframeClick));
         customTimeBtn.addEventListener('click', handleCustomTimeframeClick);
 
