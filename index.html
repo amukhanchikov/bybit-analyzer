@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bybit Futures Analyzer</title>
+    <title>Bybit Futures Price Analyzer</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,6 @@
             background-color: #2563eb; /* blue-700 */
             color: white;
         }
-        /* Animation styles */
         .fade-up {
             opacity: 0;
             transform: translateY(15px);
@@ -38,6 +37,9 @@
             opacity: 1;
             transform: translateY(0);
         }
+        #progress-bar-price {
+            transition: width 0.3s ease-out;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -45,385 +47,372 @@
     <div class="container mx-auto p-4 md:p-8">
         
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Analyzer</h1>
-            <p class="text-gray-400">Select a timeframe to analyze market statistics</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Price Analyzer</h1>
+            <p class="text-gray-400">Analyze price leaders and laggards</p>
         </header>
-
-        <!-- Control Panel -->
-        <div class="bg-gray-800 p-5 rounded-lg shadow-lg mb-6 space-y-6">
-            <!-- Timeframe Selection Section -->
-            <div>
-                <label class="block mb-4 text-lg font-semibold text-white text-center">Select Timeframe</label>
-                <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-                    <!-- Preset Buttons -->
-                    <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
-                        <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
-                        <button data-hours="4" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
-                        <button data-hours="24" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
-                        <button data-hours="168" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
-                    </div>
-                    
-                    <div class="text-gray-500 font-medium hidden sm:block">or</div>
-
-                    <!-- Custom Input -->
-                    <div class="flex items-center gap-2">
-                         <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5" placeholder="12">
-                         <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center">
-                             <option value="minutes">Minutes</option>
-                             <option value="hours" selected>Hours</option>
-                             <option value="days">Days</option>
-                         </select>
-                         <button id="custom-time-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300">Analyze</button>
+        
+        <!-- PAGE: Price Analyzer -->
+        <div id="price-analyzer-page">
+            <!-- Control Panel -->
+            <div class="bg-gray-800 p-5 rounded-lg shadow-lg mb-6 space-y-6">
+                <!-- Timeframe Selection Section -->
+                <div>
+                    <label class="block mb-4 text-lg font-semibold text-white text-center">Select Timeframe</label>
+                    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+                        <!-- Preset Buttons -->
+                        <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
+                            <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
+                            <button data-hours="4" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
+                            <button data-hours="24" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
+                            <button data-hours="168" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
+                        </div>
+                        <div class="text-gray-500 font-medium hidden sm:block">or</div>
+                        <!-- Custom Input -->
+                        <div class="flex items-center gap-2">
+                             <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5" placeholder="12">
+                             <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center">
+                                 <option value="minutes">Minutes</option>
+                                 <option value="hours" selected>Hours</option>
+                                 <option value="days">Days</option>
+                             </select>
+                             <button id="custom-time-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300">Analyze</button>
+                        </div>
                     </div>
                 </div>
+                <!-- Exclusions Section -->
+                <div class="pt-6 border-t border-gray-700/60">
+                    <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
+                    <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
+                </div>
             </div>
-            
-            <!-- Exclusions Section -->
-            <div class="pt-6 border-t border-gray-700/60">
-                <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
-                <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
-            </div>
+            <!-- Results Area -->
+            <main id="content-area-price">
+                <div id="loader-price" class="hidden flex-col items-center justify-center p-10">
+                    <div class="loader mb-4"></div>
+                     <p class="text-lg text-gray-400 mb-4">Loading price data...</p>
+                    <div class="w-full bg-gray-700 rounded-full h-2.5">
+                        <div id="progress-bar-price" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                    </div>
+                    <p id="progress-text-price" class="text-sm text-gray-400 mt-2">Fetching symbols...</p>
+                </div>
+                <div id="error-message-price" class="hidden bg-red-900 border border-red-600 text-red-100 px-4 py-3 rounded-lg relative" role="alert">
+                    <strong class="font-bold">Error!</strong>
+                    <span class="block sm:inline" id="error-text-price"></span>
+                </div>
+                <div id="results-dashboard-price" class="hidden">
+                    <div id="key-tokens-container" class="mb-6"></div>
+                    <div id="summary-stats" class="mb-6"></div>
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div id="top-10-container"></div>
+                        <div id="bottom-10-container"></div>
+                    </div>
+                </div>
+            </main>
         </div>
-
-        <!-- Results Area -->
-        <main id="content-area">
-            <div id="loader" class="hidden flex-col items-center justify-center p-10">
-                <div class="loader mb-4"></div>
-                <p class="text-lg text-gray-400">Loading data... This may take a moment.</p>
-            </div>
-            <div id="error-message" class="hidden bg-red-900 border border-red-600 text-red-100 px-4 py-3 rounded-lg relative" role="alert">
-                <strong class="font-bold">Error!</strong>
-                <span class="block sm:inline" id="error-text"></span>
-            </div>
-            
-            <!-- Statistics and Tables Container -->
-            <div id="results-dashboard" class="hidden">
-                <!-- Key Assets -->
-                <div id="key-tokens-container" class="mb-6"></div>
-                
-                <!-- Summary Statistics -->
-                <div id="summary-stats" class="mb-6"></div>
-
-                <!-- Top/Bottom Tables -->
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    <div id="top-10-container"></div>
-                    <div id="bottom-10-container"></div>
-                </div>
-
-            </div>
-        </main>
     </div>
 
     <script type="module">
-        // --- DOM Elements ---
-        const loader = document.getElementById('loader');
-        const errorMessage = document.getElementById('error-message');
-        const errorText = document.getElementById('error-text');
-        const timeframeButtons = document.querySelectorAll('.timeframe-btn');
-        const excludeInput = document.getElementById('exclude-input');
-        const customTimeInput = document.getElementById('custom-time-input');
-        const customTimeUnit = document.getElementById('custom-time-unit');
-        const customTimeBtn = document.getElementById('custom-time-btn');
-        const resultsDashboard = document.getElementById('results-dashboard');
-        const summaryStatsContainer = document.getElementById('summary-stats');
-        const keyTokensContainer = document.getElementById('key-tokens-container');
-        const top10Container = document.getElementById('top-10-container');
-        const bottom10Container = document.getElementById('bottom-10-container');
+        /**
+         * --------------------------------------------------------------------
+         * CONFIG & UTILS
+         * --------------------------------------------------------------------
+         */
+        const Config = {
+            API_BASE_URL: 'https://api.bybit.com',
+            INSTRUMENTS_INFO_ENDPOINT: '/v5/market/instruments-info?category=linear',
+            KLINE_ENDPOINT: '/v5/market/kline',
+        };
 
-        // --- Bybit API Constants ---
-        const API_BASE_URL = 'https://api.bybit.com';
-        const INSTRUMENTS_INFO_ENDPOINT = '/v5/market/instruments-info?category=linear';
-        const KLINE_ENDPOINT = '/v5/market/kline';
+        const Utils = {
+            sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
+            getPlural: (value, unit) => {
+                const roundedValue = Math.round(value);
+                return `${roundedValue} ${roundedValue === 1 ? unit : unit + 's'}`;
+            },
+            formatTimeframe: (totalHours) => {
+                if (totalHours < 1) return Utils.getPlural(totalHours * 60, 'minute');
+                if (totalHours < 24) return Utils.getPlural(totalHours, 'hour');
+                return Utils.getPlural(totalHours / 24, 'day');
+            },
+        };
 
-        // --- Main Logic ---
+        /**
+         * --------------------------------------------------------------------
+         * API SERVICE
+         * --------------------------------------------------------------------
+         */
+        const ApiService = {
+            fetchInstrumentsInfo: async () => {
+                let allInstruments = [];
+                let cursor = '';
+                const limit = 1000;
+                while (true) {
+                    const url = `${Config.API_BASE_URL}${Config.INSTRUMENTS_INFO_ENDPOINT}&limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`;
+                    const response = await fetch(url);
+                    if (!response.ok) throw new Error(`Bybit API Error: ${response.statusText}`);
+                    const data = await response.json();
+                    if (data.retCode !== 0) throw new Error(`Bybit API Response Error: ${data.retMsg}`);
+                    
+                    const instrumentsOnPage = data.result.list
+                        .filter(item => item.status === 'Trading' && item.symbol.endsWith('USDT'))
+                        .map(item => ({ 
+                            symbol: item.symbol
+                        }));
 
-        function getExcludedTokens() {
-            if (!excludeInput.value) return [];
-            return excludeInput.value
-                .toUpperCase()
-                .split(',')
-                .map(token => token.trim())
-                .filter(token => token.length > 0);
+                    allInstruments = allInstruments.concat(instrumentsOnPage);
+                    cursor = data.result.nextPageCursor;
+                    if (!cursor) break;
+                }
+                return allInstruments;
+            },
+
+            fetchKlineData: async (symbol, time, isEndTime = false) => {
+                 const url = `${Config.API_BASE_URL}${Config.KLINE_ENDPOINT}?category=linear&symbol=${symbol}&interval=1&limit=1&${isEndTime ? 'end' : 'start'}=${time}`;
+                 const response = await fetch(url);
+                 if (!response.ok) return null;
+                 const data = await response.json();
+                 return (data.retCode === 0 && data.result.list.length > 0) ? data.result.list[0] : null;
+            },
+        };
+        
+        function createUIStateHandler(pageId) {
+            const loader = document.getElementById(`loader-${pageId}`);
+            const errorContainer = document.getElementById(`error-message-${pageId}`);
+            const errorText = document.getElementById(`error-text-${pageId}`);
+            const resultsDashboard = document.getElementById(`results-dashboard-${pageId}`);
+            const contentContainers = [
+                document.getElementById('key-tokens-container'),
+                document.getElementById('summary-stats'),
+                document.getElementById('top-10-container'),
+                document.getElementById('bottom-10-container')
+            ];
+
+            return {
+                showLoader: () => {
+                    loader.classList.remove('hidden');
+                    loader.classList.add('flex');
+                    resultsDashboard.classList.add('hidden');
+                    errorContainer.classList.add('hidden');
+                },
+                hideLoader: () => {
+                    loader.classList.add('hidden');
+                    loader.classList.remove('flex');
+                },
+                showError: (message) => {
+                    errorText.textContent = message;
+                    errorContainer.classList.remove('hidden');
+                    resultsDashboard.classList.add('hidden');
+                },
+                showResults: () => {
+                     resultsDashboard.classList.remove('hidden');
+                     contentContainers.forEach((el, index) => {
+                        if (el && el.innerHTML.trim() !== '') {
+                             el.classList.add('fade-up');
+                             el.classList.remove('visible');
+                             setTimeout(() => el.classList.add('visible'), index * 100);
+                        }
+                    });
+                }
+            };
         }
         
-        function handlePresetTimeframeClick(event) {
-            updateSelectedButton(event.currentTarget);
-            const hours = parseInt(event.currentTarget.getAttribute('data-hours'));
-            runAnalysis(hours);
-        }
-        
-        function handleCustomTimeframeClick() {
-            updateSelectedButton(null); // Deselect preset buttons
-            const value = parseFloat(customTimeInput.value);
-            if (isNaN(value) || value <= 0) {
-                 showError("Please enter a valid positive number for the timeframe.");
-                 return;
+        function createProgressHandler(pageId) {
+            const progressBar = document.getElementById(`progress-bar-${pageId}`);
+            const progressText = document.getElementById(`progress-text-${pageId}`);
+            return {
+                current: 0,
+                total: 0,
+                update: function(current, total, text) {
+                    this.current = current;
+                    this.total = total;
+                    const percent = total > 0 ? (current / total) * 100 : 0;
+                    progressBar.style.width = `${percent}%`;
+                    progressText.textContent = text ? text : `Processing ${current} / ${total}...`;
+                }
             }
-            const unit = customTimeUnit.value;
-            let hours = 0;
-            switch(unit) {
-                case 'minutes':
-                    hours = value / 60;
-                    break;
-                case 'hours':
-                    hours = value;
-                    break;
-                case 'days':
-                    hours = value * 24;
-                    break;
-            }
-            runAnalysis(hours);
         }
 
-        async function runAnalysis(hours) {
-            if (isNaN(hours) || hours <= 0) return;
+        /**
+         * --------------------------------------------------------------------
+         * UI MODULE
+         * --------------------------------------------------------------------
+         */
+        const UI = {
+            elements: {
+                timeframeButtons: document.querySelectorAll('.timeframe-btn'),
+                excludeInput: document.getElementById('exclude-input'),
+                customTimeInput: document.getElementById('custom-time-input'),
+                customTimeUnit: document.getElementById('custom-time-unit'),
+                customTimeBtn: document.getElementById('custom-time-btn'),
+                keyTokensContainer: document.getElementById('key-tokens-container'),
+                summaryStatsContainer: document.getElementById('summary-stats'),
+                top10Container: document.getElementById('top-10-container'),
+                bottom10Container: document.getElementById('bottom-10-container'),
+            },
 
-            showLoader();
+            stateHandler: createUIStateHandler('price'),
+            progressHandler: createProgressHandler('price'),
 
-            try {
-                const endTime = new Date().getTime();
-                const startTime = endTime - (hours * 60 * 60 * 1000);
+            updateSelectedButton: (selectedBtn) => {
+                UI.elements.timeframeButtons.forEach(btn => btn.classList.remove('selected'));
+                if (selectedBtn) selectedBtn.classList.add('selected');
+            },
 
-                const allSymbols = await fetchAllSymbols();
-                if (!allSymbols || allSymbols.length === 0) {
-                    throw new Error("Failed to fetch the list of trading pairs.");
+            renderKeyTokens: (keyTokenData) => {
+                const container = UI.elements.keyTokensContainer;
+                if (!keyTokenData || keyTokenData.length === 0) {
+                    container.innerHTML = ''; return;
                 }
+                const cardsHTML = keyTokenData.map(item => {
+                    const color = item.change >= 0 ? 'text-green-500' : 'text-red-500';
+                    return `<div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-lg transition-transform duration-200 hover:scale-105"><div><p class="text-lg font-bold text-white">${item.symbol.replace('USDT','')}</p><p class="text-xs text-gray-400">${item.startPrice} → ${item.endPrice}</p></div><p class="text-xl font-bold ${color}">${item.change >= 0 ? '+' : ''}${item.change}%</p></div>`;
+                }).join('');
+                container.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${cardsHTML}</div>`;
+            },
+            renderSummaryStats: (stats, hours) => {
+                 const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
+                 const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
+                 UI.elements.summaryStatsContainer.innerHTML = `<div class="bg-gray-800 p-6 rounded-lg shadow-lg"><h3 class="text-xl font-semibold text-white mb-4">Market Summary for the last ${Utils.formatTimeframe(hours)} (Exclusions Applied)</h3><div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center"><div><p class="text-sm text-gray-400">Analyzed Tokens</p><p class="text-2xl font-bold text-white">${stats.count}</p></div><div><p class="text-sm text-gray-400">Average Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div><div><p class="text-sm text-gray-400">Median Return</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div></div></div>`;
+            },
+            createChangeTable: (title, data) => {
+                 if (data.length === 0) return `<div class="bg-gray-800 rounded-lg shadow-lg p-4 text-center text-gray-500">${title}<br><br>No data to display.</div>`;
+                 const tableRows = data.map(item => `<tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-200"><th scope="row" class="px-4 py-3 font-medium text-white whitespace-nowrap"><div>${item.symbol}</div><div class="text-xs text-gray-500">${item.startPrice} → ${item.endPrice}</div></th><td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td></tr>`).join('');
+                 return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden"><table class="w-full text-sm text-left text-gray-400"><caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${title}</caption><thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th scope="col" class="px-4 py-2">Symbol</th><th scope="col" class="px-4 py-2 text-right">Change</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+            },
+        };
 
-                const priceChangePromises = allSymbols.map(symbol => getPriceChangeForSymbol(symbol, startTime, endTime));
-                const results = await Promise.allSettled(priceChangePromises);
-                
-                const allValidResults = results
-                    .filter(result => result.status === 'fulfilled' && result.value !== null)
-                    .map(result => result.value);
-
-                if (allValidResults.length === 0) {
-                    throw new Error(`No data available for the selected period.`);
+        /**
+         * --------------------------------------------------------------------
+         * PRICE ANALYZER MODULE
+         * --------------------------------------------------------------------
+         */
+        const PriceAnalyzer = {
+            init() {
+                UI.elements.timeframeButtons.forEach(b => b.addEventListener('click', this.handlePresetTimeframeClick.bind(this)));
+                UI.elements.customTimeBtn.addEventListener('click', this.handleCustomTimeframeClick.bind(this));
+                UI.elements.excludeInput.addEventListener('input', (e) => localStorage.setItem('excludedTokens', e.target.value));
+                const savedExclusions = localStorage.getItem('excludedTokens');
+                if (savedExclusions) {
+                    UI.elements.excludeInput.value = savedExclusions;
                 }
-
-                const keySymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-                const keyTokenData = keySymbols
-                    .map(symbol => allValidResults.find(r => r.symbol === symbol))
-                    .filter(Boolean);
-
-                const excludedTokens = getExcludedTokens();
-                const filteredResults = allValidResults.filter(result => {
-                    const baseTicker = result.symbol.replace('USDT', '');
-                    return !excludedTokens.includes(baseTicker);
-                });
-
-                if (filteredResults.length === 0) {
-                    renderDashboard({ count: 0, averageReturn: '0.00', medianReturn: '0.00' }, [], [], keyTokenData, hours);
+            },
+            handlePresetTimeframeClick(event) {
+                UI.updateSelectedButton(event.currentTarget);
+                this.run(parseInt(event.currentTarget.getAttribute('data-hours')));
+            },
+            handleCustomTimeframeClick() {
+                UI.updateSelectedButton(null);
+                const value = parseFloat(UI.elements.customTimeInput.value);
+                if (isNaN(value) || value <= 0) {
+                    UI.stateHandler.showError("Please enter a valid positive number.");
                     return;
                 }
-                
-                filteredResults.sort((a, b) => b.change - a.change);
-                
-                const stats = calculateStatistics(filteredResults);
-                const top10 = filteredResults.slice(0, 10);
-                const bottom10 = filteredResults.slice(-10).reverse();
+                const unit = UI.elements.customTimeUnit.value;
+                let hours = unit === 'minutes' ? value / 60 : (unit === 'days' ? value * 24 : value);
+                this.run(hours);
+            },
+            getExcludedTokens() {
+                const input = UI.elements.excludeInput.value;
+                if (!input) return [];
+                return input.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
+            },
+            async getPriceChangeForSymbol(symbol, startTime, endTime) {
+                 try {
+                     const [startPriceData, endPriceData] = await Promise.all([
+                         ApiService.fetchKlineData(symbol, startTime),
+                         ApiService.fetchKlineData(symbol, endTime, true)
+                     ]);
+                     if (!startPriceData || !endPriceData) return null;
+                     const startPrice = parseFloat(startPriceData[4]);
+                     const endPrice = parseFloat(endPriceData[4]);
+                     if (startPrice === 0) return null;
+                     const change = ((endPrice - startPrice) / startPrice) * 100;
+                     const pricePrecision = Math.max(2, (startPrice.toString().split('.')[1] || '').length);
+                     return { symbol, startPrice: startPrice.toFixed(pricePrecision), endPrice: endPrice.toFixed(pricePrecision), change: parseFloat(change.toFixed(2)) };
+                 } catch (error) { return null; }
+            },
+            calculateStats(results) {
+                 const changes = results.map(r => r.change);
+                 const total = changes.length;
+                 if (total === 0) return { count: 0, averageReturn: '0.00', medianReturn: '0.00' };
+                 const sum = changes.reduce((a, v) => a + v, 0);
+                 const average = sum / total;
+                 const sortedChanges = [...changes].sort((a, b) => a - b);
+                 const midIndex = Math.floor(total / 2);
+                 const median = total % 2 === 0 ? (sortedChanges[midIndex - 1] + sortedChanges[midIndex]) / 2 : sortedChanges[midIndex];
+                 return { count: total, averageReturn: average.toFixed(2), medianReturn: median.toFixed(2) };
+            },
+            async run(hours) {
+                if (isNaN(hours) || hours <= 0) return;
+                UI.stateHandler.showLoader();
+                try {
+                    UI.progressHandler.update(0, 1, "Fetching symbols...");
+                    const instruments = await ApiService.fetchInstrumentsInfo();
+                    const allSymbols = instruments.map(i => i.symbol);
+                    const totalSymbols = allSymbols.length;
+                    let processedCount = 0;
+                    UI.progressHandler.update(0, totalSymbols, `Fetching prices for ${totalSymbols} tokens...`);
+                    
+                    const startTime = new Date().getTime() - (hours * 3600 * 1000);
+                    const endTime = new Date().getTime();
 
-                renderDashboard(stats, top10, bottom10, keyTokenData, hours);
+                    const allPromises = allSymbols.map(async (symbol) => {
+                        const result = await this.getPriceChangeForSymbol(symbol, startTime, endTime);
+                        processedCount++;
+                        UI.progressHandler.update(processedCount, totalSymbols);
+                        return result;
+                    });
+                    
+                    const allValidResults = (await Promise.all(allPromises)).filter(Boolean);
+                    UI.progressHandler.update(totalSymbols, totalSymbols, `Processing data...`);
+                    if (allValidResults.length === 0) throw new Error(`No data available.`);
 
-            } catch (error) {
-                console.error("Analysis Error:", error);
-                showError(error.message);
-            } finally {
-                hideLoader();
-            }
-        }
-        
-        function calculateStatistics(results) {
-            const changes = results.map(r => r.change);
-            const total = changes.length;
-            if (total === 0) {
-                return { count: 0, averageReturn: '0.00', medianReturn: '0.00' };
-            }
-            const sum = changes.reduce((acc, val) => acc + val, 0);
-            const average = sum / total;
-            const sortedChanges = [...changes].sort((a, b) => a - b);
-            const midIndex = Math.floor(total / 2);
-            const median = total % 2 === 0 ? (sortedChanges[midIndex - 1] + sortedChanges[midIndex]) / 2 : sortedChanges[midIndex];
-            
-            return { count: total, averageReturn: average.toFixed(2), medianReturn: median.toFixed(2) };
-        }
+                    const keyTokenData = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].map(s => allValidResults.find(r => r.symbol === s)).filter(Boolean);
+                    const excludedTokens = this.getExcludedTokens();
+                    const filteredResults = allValidResults.filter(r => !excludedTokens.includes(r.symbol.replace('USDT', '')));
+                    
+                    if (filteredResults.length === 0) {
+                        UI.renderSummaryStats({ count: 0, averageReturn: '0.00', medianReturn: '0.00' }, hours);
+                        UI.elements.top10Container.innerHTML = UI.createChangeTable('🚀 Top 10 Gainers', []);
+                        UI.elements.bottom10Container.innerHTML = UI.createChangeTable('📉 Top 10 Losers', []);
+                        UI.stateHandler.showResults();
+                        return;
+                    }
+                    
+                    filteredResults.sort((a, b) => b.change - a.change);
+                    const stats = this.calculateStats(filteredResults);
+                    const top10 = filteredResults.slice(0, 10);
+                    const bottom10 = filteredResults.slice(-10).reverse();
 
-        async function fetchAllSymbols() {
-            let allSymbols = [];
-            let cursor = '';
-            const limit = 1000;
-            while (true) {
-                const url = `${API_BASE_URL}${INSTRUMENTS_INFO_ENDPOINT}&limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error(`Bybit API Error: ${response.statusText}`);
-                const data = await response.json();
-                if (data.retCode !== 0) throw new Error(`Bybit API Response Error: ${data.retMsg}`);
-                const symbolsOnPage = data.result.list
-                    .filter(item => item.status === 'Trading' && item.symbol.endsWith('USDT'))
-                    .map(item => item.symbol);
-                allSymbols = allSymbols.concat(symbolsOnPage);
-                cursor = data.result.nextPageCursor;
-                if (!cursor) break;
-            }
-            return allSymbols;
-        }
+                    // Render dashboard
+                    UI.renderKeyTokens(keyTokenData);
+                    UI.renderSummaryStats(stats, hours);
+                    UI.elements.top10Container.innerHTML = UI.createChangeTable('🚀 Top 10 Gainers', top10);
+                    UI.elements.bottom10Container.innerHTML = UI.createChangeTable('📉 Top 10 Losers', bottom10);
+                    UI.stateHandler.showResults();
 
-        async function getPriceChangeForSymbol(symbol, startTime, endTime) {
-            try {
-                const startPriceData = await fetchKlineData(symbol, startTime);
-                const endPriceData = await fetchKlineData(symbol, endTime, true);
-                if (!startPriceData || !endPriceData) return null;
-                const startPrice = parseFloat(startPriceData[4]);
-                const endPrice = parseFloat(endPriceData[4]);
-                if (startPrice === 0) return null;
-                const change = ((endPrice - startPrice) / startPrice) * 100;
-                const pricePrecision = Math.max(2, (startPrice.toString().split('.')[1] || '').length);
-                return { symbol, startPrice: startPrice.toFixed(pricePrecision), endPrice: endPrice.toFixed(pricePrecision), change: parseFloat(change.toFixed(2)) };
-            } catch (error) { return null; }
-        }
-
-        async function fetchKlineData(symbol, time, isEndTime = false) {
-            const interval = '1';
-            let url = `${API_BASE_URL}${KLINE_ENDPOINT}?category=linear&symbol=${symbol}&interval=${interval}&limit=1`;
-            url += isEndTime ? `&end=${time}` : `&start=${time}`;
-            const response = await fetch(url);
-            if (!response.ok) return null;
-            const data = await response.json();
-            return (data.retCode === 0 && data.result.list && data.result.list.length > 0) ? data.result.list[0] : null;
-        }
-
-        // --- UI Rendering Functions ---
-        function renderDashboard(stats, top10, bottom10, keyTokenData, hours) {
-            // Prepare containers for animation
-            const animatedElements = [keyTokensContainer, summaryStatsContainer, top10Container, bottom10Container];
-            animatedElements.forEach(el => {
-                el.innerHTML = ''; // Clear previous content
-                el.classList.add('fade-up');
-                el.classList.remove('visible');
-            });
-            
-            // Render new content into the containers
-            renderKeyTokens(keyTokenData);
-            renderSummaryStats(stats, hours);
-            top10Container.innerHTML = createChangeTable('🚀 Top 10 Gainers', top10);
-            bottom10Container.innerHTML = createChangeTable('📉 Top 10 Losers', bottom10);
-
-            // Make the main dashboard container visible
-            resultsDashboard.classList.remove('hidden');
-            
-            // Trigger staggered animation
-            animatedElements.forEach((el, index) => {
-                if (el.innerHTML.trim() !== '') {
-                    setTimeout(() => {
-                        el.classList.add('visible');
-                    }, index * 100); // 100ms delay for each element
+                } catch (error) {
+                    console.error("Price Analysis Error:", error);
+                    UI.stateHandler.showError(error.message);
+                } finally {
+                    UI.stateHandler.hideLoader();
                 }
-            });
-        }
+            },
+        };
 
-        function renderSummaryStats(stats, hours) {
-            const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
-            const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
-            summaryStatsContainer.innerHTML = `
-                <div class="bg-gray-800 p-6 rounded-lg shadow-lg">
-                    <h3 class="text-xl font-semibold text-white mb-4">Market Summary for the last ${formatTimeframe(hours)} (Exclusions Applied)</h3>
-                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                        <div><p class="text-sm text-gray-400">Analyzed Tokens</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
-                        <div><p class="text-sm text-gray-400">Average Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
-                        <div><p class="text-sm text-gray-400">Median Return</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
-                    </div>
-                </div>`;
-        }
-        
-        function renderKeyTokens(keyTokenData) {
-            if (!keyTokenData || keyTokenData.length === 0) {
-                keyTokensContainer.innerHTML = '';
-                return;
+        /**
+         * --------------------------------------------------------------------
+         * APP INITIALIZATION
+         * --------------------------------------------------------------------
+         */
+        const App = {
+            init() {
+                PriceAnalyzer.init();
             }
+        };
 
-            const cardsHTML = keyTokenData.map(item => {
-                const color = item.change >= 0 ? 'text-green-500' : 'text-red-500';
-                const sign = item.change >= 0 ? '+' : '';
-                return `
-                    <div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-lg transition-transform duration-200 hover:scale-105">
-                        <div>
-                            <p class="text-lg font-bold text-white">${item.symbol.replace('USDT', '')}</p>
-                            <p class="text-xs text-gray-400">${item.startPrice} → ${item.endPrice}</p>
-                        </div>
-                        <p class="text-xl font-bold ${color}">${sign}${item.change}%</p>
-                    </div>
-                `;
-            }).join('');
-
-            keyTokensContainer.innerHTML = `
-                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    ${cardsHTML}
-                </div>
-            `;
-        }
-
-        function createChangeTable(title, data) {
-            if (data.length === 0) return `<div class="bg-gray-800 rounded-lg shadow-lg p-4 text-center text-gray-500">${title}<br><br>No data to display.</div>`;
-            const tableRows = data.map(item => `
-                <tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-200">
-                    <th scope="row" class="px-4 py-3 font-medium text-white whitespace-nowrap">
-                        <div>${item.symbol}</div><div class="text-xs text-gray-500">${item.startPrice} → ${item.endPrice}</div>
-                    </th>
-                    <td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td>
-                </tr>`).join('');
-            return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden">
-                        <table class="w-full text-sm text-left text-gray-400">
-                        <caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${title}</caption>
-                        <thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th scope="col" class="px-4 py-2">Symbol</th><th scope="col" class="px-4 py-2 text-right">Change</th></tr></thead>
-                        <tbody>${tableRows}</tbody></table>
-                    </div>`;
-        }
-
-        function showLoader() {
-            loader.classList.remove('hidden');
-            loader.classList.add('flex');
-            resultsDashboard.classList.add('hidden');
-            errorMessage.classList.add('hidden');
-        }
-
-        function hideLoader() {
-            loader.classList.add('hidden');
-            loader.classList.remove('flex');
-        }
-
-        function showError(message) {
-            errorText.textContent = message;
-            errorMessage.classList.remove('hidden');
-            resultsDashboard.classList.add('hidden');
-        }
-        
-        function updateSelectedButton(selectedBtn) {
-            timeframeButtons.forEach(btn => {
-                btn.classList.remove('selected');
-            });
-            if(selectedBtn) {
-                selectedBtn.classList.add('selected');
-            }
-        }
-
-        function getPlural(value, unit) {
-            const roundedValue = Math.round(value);
-            return `${roundedValue} ${roundedValue === 1 ? unit : unit + 's'}`;
-        }
-
-        function formatTimeframe(totalHours) {
-            if (totalHours < 1) {
-                return getPlural(totalHours * 60, 'minute');
-            }
-            if (totalHours < 24) {
-                 return getPlural(totalHours, 'hour');
-            }
-            const days = totalHours / 24;
-            return getPlural(days, 'day');
-        }
-
-        // --- Event Listeners ---
-        timeframeButtons.forEach(button => button.addEventListener('click', handlePresetTimeframeClick));
-        customTimeBtn.addEventListener('click', handleCustomTimeframeClick);
+        // Start the application
+        App.init();
 
     </script>
 </body>
