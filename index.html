@@ -188,7 +188,7 @@
             createCommonControlsHTML() {
                  const timeFrameControls = `
                     <div class="pb-8 border-b border-gray-700/60">
-                        <label class="block mb-3 text-2xl font-bold text-white text-center">1. Select Timeframe</label>
+                        <h2 class="text-xl font-semibold text-white text-center mb-4">Select Timeframe</h2>
                         <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
                             <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
                                 <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
@@ -212,32 +212,35 @@
                     ${timeFrameControls}
 
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8">
-                        <!-- Full Market Analysis -->
-                        <div class="space-y-4 bg-gray-800/50 p-6 rounded-lg">
-                             <h2 class="text-xl font-bold text-center text-white">Analyze Full Market</h2>
-                             <div class="pt-2">
+                        <!-- Full Market Analysis Card -->
+                        <div class="bg-gray-700/50 p-6 rounded-lg flex flex-col">
+                             <h2 class="text-2xl font-bold text-center text-white mb-4">Analyze Full Market</h2>
+                             <div class="pt-2 flex-grow">
                                <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
-                               <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT">
+                               <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-5/6 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
                              </div>
-                             <div class="text-center pt-2">
-                                <button id="analyze-market-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300 flex items-center justify-center gap-2 min-w-[180px] mx-auto">
-                                    <span class="btn-text">Analyze Full Market</span>
+                             <div class="text-center mt-6">
+                                <button id="analyze-market-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center justify-center gap-2 min-w-[200px] w-full sm:w-auto mx-auto">
+                                    <span class="btn-text">Analyze Market</span>
                                     <span class="btn-loader-container"></span>
                                 </button>
                              </div>
                         </div>
 
-                        <!-- Watchlist Analysis -->
-                        <div class="space-y-4 bg-gray-800/50 p-6 rounded-lg">
-                             <h2 class="text-xl font-bold text-center text-white">Analyze Watchlist File</h2>
-                             <div class="flex flex-col items-center justify-center gap-4 pt-2">
-                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer transition-colors duration-200">
+                        <!-- Watchlist Analysis Card -->
+                        <div class="bg-gray-700/50 p-6 rounded-lg flex flex-col">
+                             <h2 class="text-2xl font-bold text-center text-white mb-4">Analyze from File</h2>
+                             <div class="flex-grow flex flex-col items-center justify-center gap-4 pt-2">
+                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                                    </svg>
                                     <span id="file-upload-text">Select JSON File</span>
                                     <input type="file" id="watchlist-upload" accept=".json"/>
                                 </label>
                              </div>
-                             <div class="text-center pt-2">
-                                 <button id="analyze-watchlist-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300 flex items-center justify-center gap-2 min-w-[180px] disabled:bg-gray-500 disabled:cursor-not-allowed mx-auto" disabled>
+                             <div class="text-center mt-6">
+                                 <button id="analyze-watchlist-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center justify-center gap-2 min-w-[200px] w-full sm:w-auto disabled:bg-gray-500 disabled:cursor-not-allowed mx-auto" disabled>
                                     <span class="btn-text">Analyze Watchlist</span>
                                     <span class="btn-loader-container"></span>
                                  </button>
