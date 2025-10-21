@@ -48,6 +48,24 @@
         #progress-bar-price {
             transition: width 0.3s ease-out;
         }
+        .custom-time-active {
+            box-shadow: 0 0 0 2px #2563eb; /* Equivalent to ring-2 ring-blue-600 */
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+            cursor: pointer;
+        }
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -55,13 +73,12 @@
     <div class="container mx-auto p-4 md:p-8">
         
         <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Price Analyzer</h1>
-            <p class="text-gray-400">Analyze the market with powerful tools</p>
+            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Analyzer</h1>
+            <p class="text-gray-400">Analyze watchlists or the entire futures market</p>
         </header>
         
-        <!-- PAGE: Price Analyzer -->
         <div id="price-analyzer-page">
-            <div id="controls-price" class="bg-gray-800 p-5 rounded-lg shadow-lg mb-6 space-y-6"></div>
+            <div id="controls-price" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6 space-y-8"></div>
             <main id="content-area-price"></main>
         </div>
 
@@ -77,123 +94,78 @@
             CACHE_DURATION_MS: 3600 * 1000, // Cache instrument list for 1 hour
         };
 
-        // --- SETTINGS ---
-        const Settings = {
-            saveExcludedTokens(tokens) {
-                try {
-                    localStorage.setItem('bybitAnalyzer_excludedTokens', tokens);
-                } catch (e) {
-                    console.error("Failed to save settings to localStorage", e);
-                }
-            },
-            loadExcludedTokens() {
-                try {
-                    return localStorage.getItem('bybitAnalyzer_excludedTokens');
-                } catch (e) {
-                    console.error("Failed to load settings from localStorage", e);
-                    return null;
-                }
-            }
-        };
-
         // --- UTILITIES ---
         const Utils = {
-            sleep: ms => new Promise(resolve => setTimeout(resolve, ms)),
             getPlural: (value, unit) => `${Math.round(value)} ${Math.round(value) === 1 ? unit : unit + 's'}`,
             formatTimeframe: (totalHours) => {
                 if (totalHours < 1) return Utils.getPlural(totalHours * 60, 'minute');
                 if (totalHours < 24) return Utils.getPlural(totalHours, 'hour');
                 return Utils.getPlural(totalHours / 24, 'day');
             },
-            // Processes an array of items in parallel with a specified concurrency limit.
             async processWithConcurrency(items, concurrencyLimit, processFn, progressCallback) {
                 const results = [];
                 const queue = [...items];
                 let processedCount = 0;
-
-                // Worker function that picks an item from the queue and processes it.
                 const executeTask = async () => {
                     while(queue.length > 0) {
-                        const item = queue.shift(); // Get the next item
+                        const item = queue.shift();
                         if(item) {
                             try {
                                 const result = await processFn(item);
-                                if (result) {
-                                    results.push(result);
-                                }
+                                if (result) results.push(result);
                             } catch (e) {
-                                console.error(`Error processing item ${item.symbol || item}:`, e);
+                                console.error(`Error processing item ${item}:`, e);
                             } finally {
                                 processedCount++;
-                                if (progressCallback) {
-                                    progressCallback(processedCount, items.length);
-                                }
+                                if (progressCallback) progressCallback(processedCount, items.length);
                             }
                         }
                     }
                 };
-                
-                // Create and start a pool of workers.
                 const workers = Array(concurrencyLimit).fill(null).map(() => executeTask());
-                await Promise.all(workers); // Wait for all workers to finish.
+                await Promise.all(workers);
                 return results;
             }
         };
 
         // --- API SERVICE ---
         const ApiService = {
-            // Fetches all tradable USDT perpetual futures symbols.
-            // Implements caching to speed up subsequent loads.
             async fetchInstrumentsInfo() {
                 const cacheKey = 'bybitAnalyzer_instruments';
                 try {
                     const cachedData = sessionStorage.getItem(cacheKey);
                     if (cachedData) {
                         const { timestamp, instruments } = JSON.parse(cachedData);
-                        // Use cache if it's less than 1 hour old.
                         if (Date.now() - timestamp < Config.CACHE_DURATION_MS) {
-                            console.log("Using cached instrument list.");
                             return instruments;
                         }
                     }
-                } catch (e) {
-                    console.error("Failed to read from sessionStorage", e);
-                }
+                } catch (e) { console.error("Failed to read from sessionStorage", e); }
 
-                console.log("Fetching fresh instrument list from API.");
                 let allInstruments = []; 
                 let cursor = ''; 
-                const limit = 1000;
-                
-                // Bybit API uses pagination, so we loop until we have all instruments.
                 while (true) {
-                    const url = `${Config.API_BASE_URL}${Config.INSTRUMENTS_INFO_ENDPOINT}&limit=${limit}${cursor ? `&cursor=${cursor}` : ''}`;
+                    const url = `${Config.API_BASE_URL}${Config.INSTRUMENTS_INFO_ENDPOINT}&limit=1000${cursor ? `&cursor=${cursor}` : ''}`;
                     const response = await fetch(url);
                     if (!response.ok) throw new Error(`Bybit API Error: ${response.statusText}`);
                     const data = await response.json();
                     if (data.retCode !== 0) throw new Error(`Bybit API Response Error: ${data.retMsg}`);
                     
-                    const tradableInstruments = data.result.list
+                    allInstruments.push(...data.result.list
                         .filter(item => item.status === 'Trading' && item.symbol.endsWith('USDT'))
-                        .map(item => ({ symbol: item.symbol }));
-                    
-                    allInstruments.push(...tradableInstruments);
+                        .map(item => ({ symbol: item.symbol }))
+                    );
                     
                     cursor = data.result.nextPageCursor;
-                    if (!cursor) break; // Exit loop if there are no more pages.
+                    if (!cursor) break;
                 }
                 
-                // Save the fresh list to cache with a timestamp.
                 try {
-                    const cacheData = { timestamp: Date.now(), instruments: allInstruments };
-                    sessionStorage.setItem(cacheKey, JSON.stringify(cacheData));
-                } catch (e) {
-                    console.error("Failed to save to sessionStorage", e);
-                }
+                    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), instruments: allInstruments }));
+                } catch (e) { console.error("Failed to save to sessionStorage", e); }
 
                 return allInstruments;
             },
-            // Fetches the latest ticker data for all linear perpetuals.
             async fetchAllTickers() {
                 const url = `${Config.API_BASE_URL}${Config.TICKERS_ENDPOINT}?category=linear`;
                 const response = await fetch(url);
@@ -202,7 +174,6 @@
                 if(data.retCode !== 0) throw new Error(`Ticker API Error: ${data.retMsg}`);
                 return data.result.list;
             },
-            // Fetches a single k-line (candlestick) for a specific symbol and time.
             async fetchKlineData(symbol, time, interval) {
                 const url = `${Config.API_BASE_URL}${Config.KLINE_ENDPOINT}?category=linear&symbol=${symbol}&interval=${interval}&start=${time}&limit=1`;
                 const response = await fetch(url);
@@ -214,41 +185,68 @@
 
         // --- RENDERER ---
         const Renderer = {
-            createCommonControlsHTML(idPrefix) {
-                const excludeHTML = `<div class="pt-6 border-t border-gray-700/60">
-                           <label for="exclude-input-${idPrefix}" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
-                           <input type="text" id="exclude-input-${idPrefix}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
-                       </div>`;
-
-                return `
-                <div>
-                    <label class="block mb-4 text-lg font-semibold text-white text-center">Select Timeframe</label>
-                    <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-                        <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
-                            <button data-hours="1" class="timeframe-btn-${idPrefix} bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
-                            <button data-hours="4" class="timeframe-btn-${idPrefix} bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
-                            <button data-hours="24" class="timeframe-btn-${idPrefix} bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
-                            <button data-hours="168" class="timeframe-btn-${idPrefix} bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
+            createCommonControlsHTML() {
+                 const timeFrameControls = `
+                    <div class="pb-8 border-b border-gray-700/60">
+                        <label class="block mb-3 text-2xl font-bold text-white text-center">1. Select Timeframe</label>
+                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
+                            <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
+                                <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
+                                <button data-hours="4" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
+                                <button data-hours="24" class="timeframe-btn selected bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
+                                <button data-hours="168" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
+                            </div>
+                            <div class="text-gray-500 font-medium hidden sm:block">or</div>
+                            <div class="flex items-center gap-2">
+                                 <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5 transition-shadow duration-200" placeholder="12">
+                                 <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center transition-shadow duration-200">
+                                     <option value="minutes">Minutes</option>
+                                     <option value="hours" selected>Hours</option>
+                                     <option value="days">Days</option>
+                                 </select>
+                            </div>
                         </div>
-                        <div class="text-gray-500 font-medium hidden sm:block">or</div>
-                        <div class="flex items-center gap-2">
-                             <input type="number" id="custom-time-input-${idPrefix}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5" placeholder="12">
-                             <select id="custom-time-unit-${idPrefix}" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center">
-                                 <option value="minutes">Minutes</option>
-                                 <option value="hours" selected>Hours</option>
-                                 <option value="days">Days</option>
-                             </select>
-                             <button id="custom-time-btn-${idPrefix}" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300 flex items-center justify-center gap-2 min-w-[100px]">
-                                <span class="btn-text">Analyze</span>
-                                <span class="btn-loader-container"></span>
-                             </button>
+                    </div>`;
+
+                 return `
+                    ${timeFrameControls}
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8">
+                        <!-- Full Market Analysis -->
+                        <div class="space-y-4 bg-gray-800/50 p-6 rounded-lg">
+                             <h2 class="text-xl font-bold text-center text-white">Analyze Full Market</h2>
+                             <div class="pt-2">
+                               <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
+                               <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-2/3 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, SOL, USDC, USDE, XAUT">
+                             </div>
+                             <div class="text-center pt-2">
+                                <button id="analyze-market-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300 flex items-center justify-center gap-2 min-w-[180px] mx-auto">
+                                    <span class="btn-text">Analyze Full Market</span>
+                                    <span class="btn-loader-container"></span>
+                                </button>
+                             </div>
+                        </div>
+
+                        <!-- Watchlist Analysis -->
+                        <div class="space-y-4 bg-gray-800/50 p-6 rounded-lg">
+                             <h2 class="text-xl font-bold text-center text-white">Analyze Watchlist File</h2>
+                             <div class="flex flex-col items-center justify-center gap-4 pt-2">
+                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg cursor-pointer transition-colors duration-200">
+                                    <span id="file-upload-text">Select JSON File</span>
+                                    <input type="file" id="watchlist-upload" accept=".json"/>
+                                </label>
+                             </div>
+                             <div class="text-center pt-2">
+                                 <button id="analyze-watchlist-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-5 rounded-md transition duration-300 flex items-center justify-center gap-2 min-w-[180px] disabled:bg-gray-500 disabled:cursor-not-allowed mx-auto" disabled>
+                                    <span class="btn-text">Analyze Watchlist</span>
+                                    <span class="btn-loader-container"></span>
+                                 </button>
+                             </div>
                         </div>
                     </div>
-                </div>
-                ${excludeHTML}`;
+                 `;
             },
             createResultsContainerHTML(idPrefix) {
-                const keyTokensHTML = `<div id="key-tokens-container-${idPrefix}" class="mb-6"></div>`;
                 return `
                 <div id="loader-${idPrefix}" class="hidden flex-col items-center justify-center p-10">
                     <div class="loader mb-4"></div>
@@ -260,193 +258,132 @@
                     <strong class="font-bold">Error!</strong>
                     <span class="block sm:inline" id="error-text-${idPrefix}"></span>
                 </div>
-                <div id="results-dashboard-${idPrefix}" class="hidden">
-                    ${keyTokensHTML}
-                    <div id="summary-stats-${idPrefix}" class="mb-6"></div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div id="top-10-container-${idPrefix}"></div>
-                        <div id="bottom-10-container-${idPrefix}"></div>
-                    </div>
-                </div>`;
+                <!-- Container for all results -->
+                <div id="results-dashboard-${idPrefix}" class="hidden"></div>
+                `;
             },
         };
 
-        // --- BASE ANALYZER CLASS ---
-        class BaseAnalyzer {
+        // --- ANALYZER CLASS ---
+        class PriceAnalyzer {
             constructor(id) {
                 this.id = id;
                 this.isRunning = false;
+                this.watchlists = null;
                 this.controlsContainer = document.getElementById(`controls-${id}`);
                 this.contentContainer = document.getElementById(`content-area-${id}`);
-                this.bindEvents();
             }
 
-            bindEvents() {
-                this.controlsContainer.addEventListener('click', (e) => {
-                    if (this.isRunning) return;
-
-                    let hours;
-                    const buttonTarget = e.target.closest('button');
-                    if (!buttonTarget) return;
-
-                    if (buttonTarget.matches(`.timeframe-btn-${this.id}`)) {
-                        const allBtns = this.controlsContainer.querySelectorAll(`.timeframe-btn-${this.id}`);
-                        allBtns.forEach(b => b.classList.remove('selected'));
-                        buttonTarget.classList.add('selected');
-                        hours = parseInt(buttonTarget.dataset.hours, 10);
-                    } else if (buttonTarget.matches(`#custom-time-btn-${this.id}`)) {
-                        const allBtns = this.controlsContainer.querySelectorAll(`.timeframe-btn-${this.id}`);
-                        allBtns.forEach(b => b.classList.remove('selected'));
-                        const value = parseFloat(this.controlsContainer.querySelector(`#custom-time-input-${this.id}`).value);
-                        if (isNaN(value) || value <= 0) {
-                            this.getUI().showError("Please enter a valid positive number.");
-                            return;
-                        }
-                        const unit = this.controlsContainer.querySelector(`#custom-time-unit-${this.id}`).value;
-                        hours = unit === 'minutes' ? value / 60 : (unit === 'days' ? value * 24 : value);
-                    }
-                    
-                    if (hours !== undefined) {
-                        this.runWrapper({ hours });
-                    }
-                });
-            }
-            
             getUI() {
                 return {
                     showLoader: () => document.getElementById(`loader-${this.id}`).classList.replace('hidden', 'flex'),
                     hideLoader: () => document.getElementById(`loader-${this.id}`).classList.replace('flex', 'hidden'),
                     showError: (message) => {
-                        const errorContainer = document.getElementById(`error-message-${this.id}`);
-                        errorContainer.querySelector('span').textContent = message;
-                        errorContainer.classList.remove('hidden');
+                        document.getElementById(`error-message-${this.id}`).classList.remove('hidden');
+                        document.getElementById(`error-text-${this.id}`).textContent = message;
                         document.getElementById(`results-dashboard-${this.id}`).classList.add('hidden');
                     },
+                    hideError: () => document.getElementById(`error-message-${this.id}`).classList.add('hidden'),
                     showResults: () => {
-                        const dashboard = document.getElementById(`results-dashboard-${this.id}`);
-                        dashboard.classList.remove('hidden');
-                        dashboard.querySelectorAll('[id*="-container-"], [id*="-stats-"]').forEach((el, index) => {
-                             if (el && el.innerHTML.trim() !== '') {
-                                 el.classList.add('fade-up');
-                                 el.classList.remove('visible');
-                                 setTimeout(() => el.classList.add('visible'), index * 100);
-                            }
-                        });
+                         const dashboard = document.getElementById(`results-dashboard-${this.id}`);
+                         dashboard.classList.remove('hidden');
+                         dashboard.querySelectorAll('.result-card').forEach((el, index) => {
+                            el.classList.add('fade-up');
+                            setTimeout(() => el.classList.add('visible'), index * 50);
+                         });
                     }
                 }
             }
             
             getProgress() {
-                 const progressBar = document.getElementById(`progress-bar-${this.id}`);
-                 const progressText = document.getElementById(`progress-text-${this.id}`);
                  return {
                     update: (current, total, text) => {
                         const percent = total > 0 ? (current / total) * 100 : 0;
-                        progressBar.style.width = `${percent}%`;
-                        progressText.textContent = text ? text : `Processing ${current} / ${total}...`;
+                        document.getElementById(`progress-bar-${this.id}`).style.width = `${percent}%`;
+                        document.getElementById(`progress-text-${this.id}`).textContent = text || `Processing ${current} / ${total}...`;
                     }
                 }
             }
-            
-            getExcludedTokens() {
-                const input = this.controlsContainer.querySelector(`#exclude-input-${this.id}`);
-                return input ? input.value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean) : [];
-            }
 
-            setButtonLoading(isLoading) {
-                const button = this.controlsContainer.querySelector(`#custom-time-btn-${this.id}`);
+            setButtonLoading(isLoading, button) {
+                if (!button) return;
                 const text = button.querySelector('.btn-text');
                 const loaderContainer = button.querySelector('.btn-loader-container');
-                if (isLoading) {
-                    button.disabled = true;
-                    text.style.display = 'none';
-                    loaderContainer.innerHTML = '<div class="btn-loader"></div>';
-                } else {
-                    button.disabled = false;
-                    text.style.display = 'inline';
-                    loaderContainer.innerHTML = '';
-                }
+                button.disabled = isLoading;
+                if (text) text.style.display = isLoading ? 'none' : 'inline';
+                if (loaderContainer) loaderContainer.innerHTML = isLoading ? '<div class="btn-loader"></div>' : '';
             }
-            
-            async runWrapper({ hours }) {
-                if (isNaN(hours) || this.isRunning) return;
+
+            async runAnalysis(mode, triggerButton) {
+                if (this.isRunning) return;
+                
                 this.isRunning = true;
-                this.setButtonLoading(true);
-
-                const excludeInput = this.controlsContainer.querySelector(`#exclude-input-${this.id}`);
-                if (excludeInput) {
-                    Settings.saveExcludedTokens(excludeInput.value);
-                }
-
+                this.setButtonLoading(true, triggerButton);
+                this.getUI().hideError();
                 this.getUI().showLoader();
-                try {
-                    const progress = this.getProgress();
-                    progress.update(0, 1, "Fetching symbols...");
-                    const instruments = await ApiService.fetchInstrumentsInfo();
-                    const allSymbols = instruments.map(i => i.symbol);
-                    
-                    const params = { hours };
 
-                    const allValidResults = await this.analyzeTokens(allSymbols, params);
-                    
-                    progress.update(allSymbols.length, allSymbols.length, `Processing data...`);
+                try {
+                    const hours = this.getSelectedTimeframe();
+                    if (isNaN(hours)) throw new Error("Invalid timeframe selected.");
+
+                    let symbolsToFetch;
+                    if (mode === 'watchlist') {
+                        if (!this.watchlists) throw new Error("No watchlist file loaded.");
+                        const longSymbols = Object.keys(this.watchlists.long_watchlist || {});
+                        const shortSymbols = Object.keys(this.watchlists.short_watchlist || {});
+                        symbolsToFetch = [...new Set([...longSymbols, ...shortSymbols])];
+                        if (symbolsToFetch.length === 0) throw new Error("No symbols found in the provided watchlists.");
+                    } else { // full_market
+                        this.getProgress().update(0, 1, "Fetching instrument list...");
+                        const instruments = await ApiService.fetchInstrumentsInfo();
+                        const excluded = document.getElementById('exclude-input').value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
+                        symbolsToFetch = instruments.map(i => i.symbol).filter(s => !excluded.includes(s.replace('USDT', '')));
+                    }
+
+                    const allValidResults = await this.fetchAndProcessTokenData(symbolsToFetch, { hours });
                     if (allValidResults.length === 0) throw new Error(`No data available for the selected period.`);
-                    
-                    const processedData = this.processResults(allValidResults);
-                    
-                    this.render(processedData, params);
+
+                    const ignoredCount = symbolsToFetch.length - allValidResults.length;
+                    this.render(allValidResults, { hours, mode, ignoredCount });
                     this.getUI().showResults();
 
                 } catch (error) {
-                    console.error(`${this.id} Analysis Error:`, error);
+                    console.error(`Analysis Error:`, error);
                     this.getUI().showError(error.message);
                 } finally {
-                    this.setButtonLoading(false);
+                    this.setButtonLoading(false, triggerButton);
                     this.getUI().hideLoader();
                     this.isRunning = false;
                 }
             }
-
-            async analyzeTokens(symbols, params) { throw new Error("analyzeTokens method must be implemented"); }
-            processResults(allValidResults) { throw new Error("processResults method must be implemented"); }
-            render(data, params) { throw new Error("render method must be implemented"); }
-        }
-
-        // --- PRICE ANALYZER ---
-        class PriceAnalyzer extends BaseAnalyzer {
-            constructor() { super('price'); }
-
-            async analyzeTokens(allSymbols, { hours }) {
+            
+            async fetchAndProcessTokenData(symbols, { hours }) {
                 const progress = this.getProgress();
                 const now = new Date();
-                const utcNow = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes());
-                const startTime = utcNow - (hours * 3600 * 1000);
+                const startTime = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()) - (hours * 3600 * 1000);
                 
-                let klineInterval;
-                if (hours <= 24) {
-                    klineInterval = '1';
-                } else if (hours <= 720) {
-                    klineInterval = '60';
-                } else {
-                    klineInterval = 'D';
-                }
-                
+                const klineInterval = (hours <= 24) ? '1' : (hours <= 720) ? '60' : 'D';
+
                 progress.update(0, 1, 'Fetching current prices...');
-                const tickers = await ApiService.fetchAllTickers();
-                const tickersMap = new Map(tickers.map(t => [t.symbol, t.lastPrice]));
+                const tickersMap = new Map((await ApiService.fetchAllTickers()).map(t => [t.symbol, t.lastPrice]));
                 
-                progress.update(0, allSymbols.length, `Fetching historical prices for ${allSymbols.length} tokens...`);
+                progress.update(0, symbols.length, `Fetching historical prices for ${symbols.length} tokens...`);
                 
-                const processToken = async (symbol) => {
+                return await Utils.processWithConcurrency(symbols, 30, async (symbol) => {
                     const endPriceStr = tickersMap.get(symbol);
                     if (!endPriceStr) return null;
-
                     const startPriceData = await ApiService.fetchKlineData(symbol, startTime, klineInterval);
                     if (!startPriceData) return null;
-
+                    
                     const startTimestampFromServer = parseInt(startPriceData[0], 10);
-                    const tolerance = 24 * 60 * 60 * 1000;
-                    if (klineInterval === 'D' && Math.abs(startTimestampFromServer - startTime) > tolerance) {
+                    let tolerance;
+                    switch (klineInterval) {
+                        case '1': tolerance = 1 * 60 * 1000 * 5; break; // 5 minutes for 1m interval
+                        case '60': tolerance = 60 * 60 * 1000 * 2; break; // 2 hours for 1h interval
+                        case 'D': tolerance = 24 * 60 * 60 * 1000 * 2; break; // 2 days for daily interval
+                        default: tolerance = 60 * 60 * 1000; // 1 hour default
+                    }
+                    if (startTimestampFromServer > startTime + tolerance) {
                         return null;
                     }
 
@@ -455,25 +392,14 @@
                     if (startPrice === 0) return null;
                     
                     const change = ((endPrice - startPrice) / startPrice) * 100;
-                    const pricePrecision = Math.max(2, (startPrice.toString().split('.')[1] || '').length);
-                    return { symbol, startPrice: startPrice.toFixed(pricePrecision), endPrice: endPrice.toFixed(pricePrecision), change: parseFloat(change.toFixed(2)) };
-                };
-
-                return await Utils.processWithConcurrency(
-                    allSymbols,
-                    30, // Concurrency limit for API requests
-                    processToken,
-                    (current, total) => progress.update(current, total)
-                );
+                    return { symbol, change: parseFloat(change.toFixed(2)), startPrice: startPrice.toFixed(4), endPrice: endPrice.toFixed(4) };
+                }, (current, total) => progress.update(current, total));
             }
-            
-            processResults(allValidResults) {
-                const keyTokenData = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].map(s => allValidResults.find(r => r.symbol === s)).filter(Boolean);
-                const excludedTokens = this.getExcludedTokens();
-                const filteredResults = allValidResults.filter(r => !excludedTokens.includes(r.symbol.replace('USDT', '')));
-                
-                if(filteredResults.length === 0) return { keyTokenData, stats: { count: 0, averageReturn: '0.00', medianReturn: '0.00' }, top10: [], bottom10: [] };
 
+            calculateStatsForList(listSymbols, allResults, limit = 5) {
+                const filteredResults = allResults.filter(r => listSymbols.includes(r.symbol));
+                if (filteredResults.length === 0) return { count: 0, averageReturn: '0.00', medianReturn: '0.00', top: [], bottom: [] };
+                
                 filteredResults.sort((a, b) => b.change - a.change);
                 const changes = filteredResults.map(r => r.change);
                 const sum = changes.reduce((a, v) => a + v, 0);
@@ -481,55 +407,186 @@
                 const sortedChanges = [...changes].sort((a, b) => a - b);
                 const midIndex = Math.floor(changes.length / 2);
                 const median = changes.length % 2 === 0 ? (sortedChanges[midIndex - 1] + sortedChanges[midIndex]) / 2 : sortedChanges[midIndex];
-                const stats = { count: filteredResults.length, averageReturn: average.toFixed(2), medianReturn: median.toFixed(2) };
-
-                const top10 = filteredResults.slice(0, 10);
-                const bottom10 = filteredResults.slice(-10).reverse();
-                return { keyTokenData, stats, top10, bottom10 };
+                
+                return {
+                    count: filteredResults.length,
+                    averageReturn: average.toFixed(2),
+                    medianReturn: median.toFixed(2),
+                    top: filteredResults.slice(0, limit),
+                    bottom: filteredResults.slice(-limit).sort((a, b) => a.change - b.change)
+                };
             }
             
-            render(data, {hours}) {
-                const { keyTokenData, stats, top10, bottom10 } = data;
-                
-                const keyContainer = document.getElementById('key-tokens-container-price');
-                if (!keyTokenData || keyTokenData.length === 0) { keyContainer.innerHTML = ''; }
-                else {
-                    const cardsHTML = keyTokenData.map(item => {
-                        const color = item.change >= 0 ? 'text-green-500' : 'text-red-500';
-                        return `<div class="bg-gray-700 p-4 rounded-lg flex justify-between items-center shadow-lg transition-transform duration-200 hover:scale-105"><div><p class="text-lg font-bold text-white">${item.symbol.replace('USDT','')}</p><p class="text-xs text-gray-400">${item.startPrice} → ${item.endPrice}</p></div><p class="text-xl font-bold ${color}">${item.change >= 0 ? '+' : ''}${item.change}%</p></div>`;
-                    }).join('');
-                    keyContainer.innerHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4">${cardsHTML}</div>`;
+            render(results, { hours, mode, ignoredCount }) {
+                const dashboard = document.getElementById(`results-dashboard-${this.id}`);
+                if (mode === 'watchlist') {
+                    const longSymbols = Object.keys(this.watchlists.long_watchlist || {});
+                    const shortSymbols = Object.keys(this.watchlists.short_watchlist || {});
+                    
+                    const longResults = results.filter(r => longSymbols.includes(r.symbol));
+                    const shortResults = results.filter(r => shortSymbols.includes(r.symbol));
+                    const longIgnored = longSymbols.length - longResults.length;
+                    const shortIgnored = shortSymbols.length - shortResults.length;
+
+                    const longStats = this.calculateStatsForList(longSymbols, results, 5);
+                    const shortStats = this.calculateStatsForList(shortSymbols, results, 5);
+
+                    dashboard.innerHTML = `
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <div class="space-y-6">${this.createListResultHTML('Long Watchlist', longStats, hours, longIgnored)}</div>
+                            <div class="space-y-6">${this.createListResultHTML('Short Watchlist', shortStats, hours, shortIgnored)}</div>
+                        </div>`;
+                } else { // full_market
+                    const stats = this.calculateStatsForList(results.map(r => r.symbol), results, 10);
+                    dashboard.innerHTML = this.createFullMarketResultHTML(stats, hours, ignoredCount);
+                }
+            }
+
+            createFullMarketResultHTML(stats, hours, ignoredCount) {
+                const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
+                const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
+
+                const summaryHTML = `
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card">
+                        <h3 class="text-xl font-semibold text-white mb-4">Market Summary</h3>
+                        <p class="text-sm text-gray-400 mb-4">For the last ${Utils.formatTimeframe(hours)} (Exclusions Applied)</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div><p class="text-sm text-gray-400">Analyzed</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
+                            <div><p class="text-sm text-gray-400">Ignored</p><p class="text-2xl font-bold text-gray-500">${ignoredCount}</p></div>
+                            <div><p class="text-sm text-gray-400">Avg. Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
+                            <div><p class="text-sm text-gray-400">Median</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
+                        </div>
+                    </div>`;
+
+                 const topHTML = this.createTableHTML('🚀 Top 10 Gainers', stats.top);
+                 const bottomHTML = this.createTableHTML('📉 Top 10 Losers', stats.bottom);
+
+                 return `<div class="space-y-6">${summaryHTML}<div class="grid grid-cols-1 md:grid-cols-2 gap-6">${topHTML}${bottomHTML}</div></div>`;
+            }
+
+            createListResultHTML(title, stats, hours, ignoredCount) {
+                if (stats.count === 0 && ignoredCount === 0) return `<div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card"><h3 class="text-xl font-semibold text-white mb-4">${title}</h3><p class="text-gray-400">No tokens found in this list.</p></div>`;
+
+                const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
+                const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
+
+                const summaryHTML = `
+                    <div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card">
+                        <h3 class="text-xl font-semibold text-white mb-4">${title} Summary</h3>
+                        <p class="text-sm text-gray-400 mb-4">For the last ${Utils.formatTimeframe(hours)}</p>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                            <div><p class="text-sm text-gray-400">Analyzed</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
+                            <div><p class="text-sm text-gray-400">Ignored</p><p class="text-2xl font-bold text-gray-500">${ignoredCount}</p></div>
+                            <div><p class="text-sm text-gray-400">Avg.</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
+                            <div><p class="text-sm text-gray-400">Median</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
+                        </div>
+                    </div>`;
+
+                return `${summaryHTML}${this.createTableHTML('🚀 Top 5 Gainers', stats.top)}${this.createTableHTML('📉 Top 5 Losers', stats.bottom)}`;
+            }
+
+            createTableHTML(tableTitle, data) {
+                 if (data.length === 0) return '';
+                 const tableRows = data.map(item => `
+                    <tr class="border-b border-gray-700 hover:bg-gray-700/50">
+                        <th class="px-4 py-3 font-medium text-white"><a href="https://www.bybit.com/trade/usdt/${item.symbol}" target="_blank" class="hover:underline">${item.symbol}</a></th>
+                        <td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td>
+                    </tr>`).join('');
+
+                 return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden result-card">
+                            <table class="w-full text-sm text-left text-gray-400">
+                                <caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${tableTitle}</caption>
+                                <thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th class="px-4 py-2">Symbol</th><th class="px-4 py-2 text-right">Change</th></tr></thead>
+                                <tbody>${tableRows}</tbody>
+                            </table>
+                        </div>`;
+            }
+
+            getSelectedTimeframe() {
+                const selectedBtn = this.controlsContainer.querySelector(`.timeframe-btn.selected`);
+                if (selectedBtn) {
+                    return parseInt(selectedBtn.dataset.hours, 10);
                 }
                 
-                 const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
-                 const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
-                 document.getElementById('summary-stats-price').innerHTML = `<div class="bg-gray-800 p-6 rounded-lg shadow-lg"><h3 class="text-xl font-semibold text-white mb-4">Market Summary for the last ${Utils.formatTimeframe(hours)} (Exclusions Applied)</h3><div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center"><div><p class="text-sm text-gray-400">Analyzed Tokens</p><p class="text-2xl font-bold text-white">${stats.count}</p></div><div><p class="text-sm text-gray-400">Average Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div><div><p class="text-sm text-gray-400">Median Return</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div></div></div>`;
+                const value = parseFloat(document.getElementById(`custom-time-input`).value);
+                if (isNaN(value) || value <= 0) {
+                    return NaN;
+                }
+                
+                const unit = document.getElementById(`custom-time-unit`).value;
+                return unit === 'minutes' ? value / 60 : (unit === 'days' ? value * 24 : value);
+            }
 
-                const createTableHTML = (title, data) => {
-                     if (data.length === 0) return `<div class="bg-gray-800 rounded-lg shadow-lg p-4 text-center text-gray-500">${title}<br><br>No data to display.</div>`;
-                     const tableRows = data.map(item => `<tr class="bg-gray-800 border-b border-gray-700 hover:bg-gray-700/50 transition-colors duration-200"><th scope="row" class="px-4 py-3 font-medium text-white whitespace-nowrap"><div>${item.symbol}</div><div class="text-xs text-gray-500">${item.startPrice} → ${item.endPrice}</div></th><td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td></tr>`).join('');
-                     return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden"><table class="w-full text-sm text-left text-gray-400"><caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${title}</caption><thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th scope="col" class="px-4 py-2">Symbol</th><th scope="col" class="px-4 py-2 text-right">Change</th></tr></thead><tbody>${tableRows}</tbody></table></div>`;
+            bindEvents() {
+                const analyzeWatchlistBtn = document.getElementById('analyze-watchlist-btn');
+                const analyzeMarketBtn = document.getElementById('analyze-market-btn');
+                const fileInput = document.getElementById('watchlist-upload');
+                const customTimeInput = document.getElementById('custom-time-input');
+                const customTimeUnit = document.getElementById('custom-time-unit');
+                const fileUploadText = document.getElementById('file-upload-text');
+
+                const setActiveCustomTime = () => {
+                    this.controlsContainer.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('selected'));
+                    customTimeInput.classList.add('custom-time-active');
+                    customTimeUnit.classList.add('custom-time-active');
                 };
 
-                document.getElementById('top-10-container-price').innerHTML = createTableHTML('🚀 Top 10 Gainers', top10);
-                document.getElementById('bottom-10-container-price').innerHTML = createTableHTML('📉 Top 10 Losers', bottom10);
+                const clearActiveCustomTime = () => {
+                    customTimeInput.classList.remove('custom-time-active');
+                    customTimeUnit.classList.remove('custom-time-active');
+                };
+                
+                this.controlsContainer.addEventListener('click', (e) => {
+                    const target = e.target.closest('button');
+                    if (target && target.matches('.timeframe-btn')) {
+                        this.controlsContainer.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('selected'));
+                        target.classList.add('selected');
+                        customTimeInput.value = '';
+                        clearActiveCustomTime();
+                    }
+                });
+                
+                customTimeInput.addEventListener('focus', setActiveCustomTime);
+                customTimeInput.addEventListener('input', setActiveCustomTime);
+                customTimeUnit.addEventListener('change', setActiveCustomTime);
+
+
+                fileInput.addEventListener('change', (event) => {
+                    const file = event.target.files[0];
+                    if (!file) {
+                        analyzeWatchlistBtn.disabled = true;
+                        fileUploadText.textContent = 'Select JSON File';
+                        return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        try {
+                            this.watchlists = JSON.parse(e.target.result);
+                            this.getUI().hideError();
+                            analyzeWatchlistBtn.disabled = false;
+                            fileUploadText.textContent = file.name;
+                        } catch (err) {
+                            this.watchlists = null;
+                            this.getUI().showError('Failed to parse JSON file.');
+                            analyzeWatchlistBtn.disabled = true;
+                            fileUploadText.textContent = 'Invalid File!';
+                        }
+                    };
+                    reader.readAsText(file);
+                });
+                
+                analyzeWatchlistBtn.addEventListener('click', () => this.runAnalysis('watchlist', analyzeWatchlistBtn));
+                analyzeMarketBtn.addEventListener('click', () => this.runAnalysis('full_market', analyzeMarketBtn));
             }
         }
         
         // --- APP INITIALIZATION ---
         const App = {
             init() {
-                document.getElementById('controls-price').innerHTML = Renderer.createCommonControlsHTML('price');
+                document.getElementById('controls-price').innerHTML = Renderer.createCommonControlsHTML();
                 document.getElementById('content-area-price').innerHTML = Renderer.createResultsContainerHTML('price');
-                this.loadSettings();
-                new PriceAnalyzer();
-            },
-            loadSettings() {
-                const savedTokens = Settings.loadExcludedTokens();
-                const excludeInput = document.getElementById('exclude-input-price');
-                if (savedTokens !== null) {
-                    excludeInput.value = savedTokens;
-                }
+                const analyzer = new PriceAnalyzer('price');
+                analyzer.bindEvents();
             }
         };
 
@@ -538,3 +595,4 @@
     </script>
 </body>
 </html>
+
