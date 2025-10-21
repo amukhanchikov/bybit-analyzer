@@ -66,6 +66,24 @@
             width: 100%;
             height: 100%;
         }
+        .favorite-item:hover .delete-favorite-btn {
+            opacity: 1;
+        }
+        /* Custom Scrollbar for Favorites */
+        #favorites-list::-webkit-scrollbar {
+            width: 8px;
+        }
+        #favorites-list::-webkit-scrollbar-track {
+            background: #1f2937; /* bg-gray-800 */
+            border-radius: 10px;
+        }
+        #favorites-list::-webkit-scrollbar-thumb {
+            background: #4b5563; /* bg-gray-600 */
+            border-radius: 10px;
+        }
+        #favorites-list::-webkit-scrollbar-thumb:hover {
+            background: #6b7280; /* bg-gray-500 */
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100">
@@ -92,6 +110,7 @@
             KLINE_ENDPOINT: '/v5/market/kline',
             TICKERS_ENDPOINT: '/v5/market/tickers',
             CACHE_DURATION_MS: 3600 * 1000, // Cache instrument list for 1 hour
+            FAVORITES_STORAGE_KEY: 'bybitAnalyzer_favorites'
         };
 
         // --- UTILITIES ---
@@ -231,13 +250,30 @@
                         <div class="bg-gray-700/50 p-6 rounded-lg flex flex-col">
                              <h2 class="text-2xl font-bold text-center text-white mb-4">Analyze from File</h2>
                              <div class="flex-grow flex flex-col items-center justify-center gap-4 pt-2">
-                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-center">
+                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-center w-full max-w-xs">
                                     <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
                                     </svg>
-                                    <span id="file-upload-text">Select JSON File</span>
+                                    <span>Select JSON File</span>
                                     <input type="file" id="watchlist-upload" accept=".json"/>
                                 </label>
+                                <div id="file-info-container" class="hidden items-center gap-2 text-sm bg-gray-900/50 p-2 rounded-md w-full max-w-xs">
+                                    <span id="file-info-name" class="text-gray-300 truncate flex-grow"></span>
+                                    <button id="save-favorite-btn" title="Save to favorites" class="text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                                            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z" />
+                                        </svg>
+                                    </button>
+                                    <button id="clear-file-btn" title="Clear selection" class="text-gray-400 hover:text-red-500 transition-colors">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                       </svg>
+                                   </button>
+                                </div>
+                             </div>
+                             <div id="favorites-container" class="mt-4 pt-4 border-t border-gray-600/50">
+                                <h3 class="text-sm font-semibold text-center text-gray-400 mb-2">Favorites</h3>
+                                <div id="favorites-list" class="space-y-2 max-h-32 overflow-y-auto"></div>
                              </div>
                              <div class="text-center mt-6">
                                  <button id="analyze-watchlist-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center justify-center gap-2 min-w-[200px] w-full sm:w-auto disabled:bg-gray-500 disabled:cursor-not-allowed mx-auto" disabled>
@@ -273,6 +309,7 @@
                 this.id = id;
                 this.isRunning = false;
                 this.watchlists = null;
+                this.currentFileName = null;
                 this.controlsContainer = document.getElementById(`controls-${id}`);
                 this.contentContainer = document.getElementById(`content-area-${id}`);
             }
@@ -520,13 +557,94 @@
                 return unit === 'minutes' ? value / 60 : (unit === 'days' ? value * 24 : value);
             }
 
+            // --- Favorites Logic ---
+            getFavorites() {
+                try {
+                    return JSON.parse(localStorage.getItem(Config.FAVORITES_STORAGE_KEY)) || [];
+                } catch (e) {
+                    return [];
+                }
+            }
+
+            saveFavorite() {
+                if (!this.currentFileName || !this.watchlists) return;
+                const favorites = this.getFavorites();
+                const existingIndex = favorites.findIndex(fav => fav.name === this.currentFileName);
+                const newFav = { name: this.currentFileName, data: this.watchlists };
+                
+                if (existingIndex > -1) {
+                    favorites[existingIndex] = newFav; // Update existing
+                } else {
+                    favorites.push(newFav);
+                }
+                localStorage.setItem(Config.FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+                this.renderFavorites();
+            }
+
+            deleteFavorite(name) {
+                let favorites = this.getFavorites();
+                favorites = favorites.filter(fav => fav.name !== name);
+                localStorage.setItem(Config.FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
+                this.renderFavorites();
+            }
+
+            loadFavorite(name) {
+                const favorites = this.getFavorites();
+                const favorite = favorites.find(fav => fav.name === name);
+                if (favorite) {
+                    this.watchlists = favorite.data;
+                    this.currentFileName = favorite.name;
+                    
+                    document.getElementById('file-info-name').textContent = this.currentFileName;
+                    
+                    const fileInfoContainer = document.getElementById('file-info-container');
+                    fileInfoContainer.classList.remove('hidden');
+                    fileInfoContainer.classList.add('flex');
+
+                    document.getElementById('analyze-watchlist-btn').disabled = false;
+                    document.querySelector('label[for="watchlist-upload"]').classList.add('hidden');
+                }
+            }
+
+            renderFavorites() {
+                const favorites = this.getFavorites();
+                const container = document.getElementById('favorites-list');
+                const favoritesContainer = document.getElementById('favorites-container');
+                container.innerHTML = '';
+
+                if (favorites.length === 0) {
+                    favoritesContainer.classList.add('hidden');
+                    return;
+                }
+                favoritesContainer.classList.remove('hidden');
+
+                favorites.forEach(fav => {
+                    const div = document.createElement('div');
+                    div.className = 'favorite-item flex items-center justify-between bg-gray-900/50 p-2 rounded-md';
+                    div.innerHTML = `
+                        <button class="text-left text-blue-400 hover:underline truncate flex-grow" data-name="${fav.name}">${fav.name}</button>
+                        <button class="delete-favorite-btn text-gray-500 hover:text-red-500 transition-all opacity-0 ml-2" data-name="${fav.name}">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                            </svg>
+                        </button>
+                    `;
+                    container.appendChild(div);
+                });
+            }
+
+
             bindEvents() {
                 const analyzeWatchlistBtn = document.getElementById('analyze-watchlist-btn');
                 const analyzeMarketBtn = document.getElementById('analyze-market-btn');
                 const fileInput = document.getElementById('watchlist-upload');
                 const customTimeInput = document.getElementById('custom-time-input');
                 const customTimeUnit = document.getElementById('custom-time-unit');
-                const fileUploadText = document.getElementById('file-upload-text');
+                const fileInfoContainer = document.getElementById('file-info-container');
+                const fileInfoName = document.getElementById('file-info-name');
+                const saveFavoriteBtn = document.getElementById('save-favorite-btn');
+                const favoritesList = document.getElementById('favorites-list');
+                const clearFileBtn = document.getElementById('clear-file-btn');
 
                 const setActiveCustomTime = () => {
                     this.controlsContainer.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('selected'));
@@ -553,33 +671,66 @@
                 customTimeInput.addEventListener('input', setActiveCustomTime);
                 customTimeUnit.addEventListener('change', setActiveCustomTime);
 
+                const resetFileSelection = () => {
+                    this.watchlists = null;
+                    this.currentFileName = null;
+                    fileInput.value = ''; // Important to allow re-selecting the same file
+
+                    fileInfoContainer.classList.add('hidden');
+                    fileInfoContainer.classList.remove('flex');
+
+                    document.querySelector('label[for="watchlist-upload"]').classList.remove('hidden');
+                    
+                    analyzeWatchlistBtn.disabled = true;
+                };
+
+                clearFileBtn.addEventListener('click', resetFileSelection);
 
                 fileInput.addEventListener('change', (event) => {
                     const file = event.target.files[0];
-                    if (!file) {
-                        analyzeWatchlistBtn.disabled = true;
-                        fileUploadText.textContent = 'Select JSON File';
-                        return;
-                    }
+                    if (!file) return;
+
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         try {
                             this.watchlists = JSON.parse(e.target.result);
+                            this.currentFileName = file.name;
                             this.getUI().hideError();
                             analyzeWatchlistBtn.disabled = false;
-                            fileUploadText.textContent = file.name;
+                            
+                            document.querySelector('label[for="watchlist-upload"]').classList.add('hidden');
+                            fileInfoName.textContent = file.name;
+                            fileInfoContainer.classList.remove('hidden');
+                            fileInfoContainer.classList.add('flex');
+                            
                         } catch (err) {
                             this.watchlists = null;
+                            this.currentFileName = null;
                             this.getUI().showError('Failed to parse JSON file.');
                             analyzeWatchlistBtn.disabled = true;
-                            fileUploadText.textContent = 'Invalid File!';
+                            fileInfoContainer.classList.add('hidden');
                         }
                     };
                     reader.readAsText(file);
                 });
                 
+                saveFavoriteBtn.addEventListener('click', () => this.saveFavorite());
+
+                favoritesList.addEventListener('click', (e) => {
+                    const loadBtn = e.target.closest('button[data-name]');
+                    if (!loadBtn) return;
+
+                    if (loadBtn.classList.contains('delete-favorite-btn')) {
+                        this.deleteFavorite(loadBtn.dataset.name);
+                    } else {
+                        this.loadFavorite(loadBtn.dataset.name);
+                    }
+                });
+
                 analyzeWatchlistBtn.addEventListener('click', () => this.runAnalysis('watchlist', analyzeWatchlistBtn));
                 analyzeMarketBtn.addEventListener('click', () => this.runAnalysis('full_market', analyzeMarketBtn));
+                
+                this.renderFavorites(); // Initial render
             }
         }
         
