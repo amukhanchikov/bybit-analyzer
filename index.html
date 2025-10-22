@@ -377,14 +377,51 @@
                         this.getProgress().update(0, 1, "Fetching instrument list...");
                         const instruments = await ApiService.fetchInstrumentsInfo();
                         const excluded = document.getElementById('exclude-input').value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
-                        symbolsToFetch = instruments.map(i => i.symbol).filter(s => !excluded.includes(s.replace('USDT', '')));
+                        // --- MODIFICATION START ---
+                        const allSymbols = instruments.map(i => i.symbol);
+                        const majorsToTrack = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+
+                        // Symbols for the main market stats (respecting exclusions)
+                        const marketSymbolsToFetch = allSymbols.filter(s => !excluded.includes(s.replace('USDT', '')));
+                        
+                        // Symbols for the major movers card (fetch regardless of exclusion)
+                        const majorSymbolsToFetch = allSymbols.filter(s => majorsToTrack.includes(s));
+                        
+                        // Combine for a single fetch operation
+                        symbolsToFetch = [...new Set([...marketSymbolsToFetch, ...majorSymbolsToFetch])];
+                        // --- MODIFICATION END ---
                     }
 
                     const allValidResults = await this.fetchAndProcessTokenData(symbolsToFetch, { hours });
                     if (allValidResults.length === 0) throw new Error(`No data available for the selected period.`);
 
-                    const ignoredCount = symbolsToFetch.length - allValidResults.length;
-                    this.render(allValidResults, { hours, mode, ignoredCount });
+                    // --- MODIFICATION START ---
+                    let majorMovers = null;
+                    let resultsToRender = allValidResults;
+                    let ignoredCount = symbolsToFetch.length - allValidResults.length; // Default ignored count
+
+                    if (mode === 'full_market') {
+                        // We need to separate the results for the stats calculation vs. the major movers card
+                        const excluded = document.getElementById('exclude-input').value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
+                        // ApiService.fetchInstrumentsInfo() is cached, so this is a fast operation
+                        const marketSymbols = (await ApiService.fetchInstrumentsInfo()).map(i => i.symbol)
+                            .filter(s => !excluded.includes(s.replace('USDT', '')));
+
+                        resultsToRender = allValidResults.filter(r => marketSymbols.includes(r.symbol));
+                        
+                        majorMovers = {
+                            btc: allValidResults.find(r => r.symbol === 'BTCUSDT'),
+                            eth: allValidResults.find(r => r.symbol === 'ETHUSDT'),
+                            sol: allValidResults.find(r => r.symbol === 'SOLUSDT')
+                        };
+                        
+                        // Recalculate ignored count based on *market* symbols only
+                        ignoredCount = marketSymbols.length - resultsToRender.length;
+                    }
+                    // For watchlist, resultsToRender is allValidResults, and ignoredCount is correct
+                    
+                    this.render(resultsToRender, { hours, mode, ignoredCount, majorMovers });
+                    // --- MODIFICATION END ---
                     this.getUI().showResults();
 
                 } catch (error) {
@@ -457,7 +494,7 @@
                 };
             }
             
-            render(results, { hours, mode, ignoredCount }) {
+            render(results, { hours, mode, ignoredCount, majorMovers }) {
                 const dashboard = document.getElementById(`results-dashboard-${this.id}`);
                 if (mode === 'watchlist') {
                     const longSymbols = Object.keys(this.watchlists.long_watchlist || {});
@@ -478,23 +515,46 @@
                         </div>`;
                 } else { // full_market
                     const stats = this.calculateStatsForList(results.map(r => r.symbol), results, 10);
-                    dashboard.innerHTML = this.createFullMarketResultHTML(stats, hours, ignoredCount);
+                    dashboard.innerHTML = this.createFullMarketResultHTML(stats, hours, ignoredCount, majorMovers);
                 }
             }
+            
+            createMajorMoverCardHTML(data, name) {
+                if (!data) {
+                    return `<div>
+                                <p class="text-lg font-bold">${name}</p>
+                                <p class="text-xl font-bold text-gray-500">-</p>
+                            </div>`;
+                }
+                const color = data.change >= 0 ? 'text-green-500' : 'text-red-500';
+                return `<div>
+                            <p class="text-lg font-bold">${name}</p>
+                            <p class="text-xl font-bold ${color}">${data.change >= 0 ? '+' : ''}${data.change}%</p>
+                        </div>`;
+            }
 
-            createFullMarketResultHTML(stats, hours, ignoredCount) {
+            createFullMarketResultHTML(stats, hours, ignoredCount, majorMovers) {
                 const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
                 const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
+
+                const btcHTML = this.createMajorMoverCardHTML(majorMovers.btc, 'BTC');
+                const ethHTML = this.createMajorMoverCardHTML(majorMovers.eth, 'ETH');
+                const solHTML = this.createMajorMoverCardHTML(majorMovers.sol, 'SOL');
 
                 const summaryHTML = `
                     <div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card">
                         <h3 class="text-xl font-semibold text-white mb-4">Market Summary</h3>
                         <p class="text-sm text-gray-400 mb-4">For the last ${Utils.formatTimeframe(hours)} (Exclusions Applied)</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center border-b border-gray-700 pb-4 mb-4">
                             <div><p class="text-sm text-gray-400">Analyzed</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
                             <div><p class="text-sm text-gray-400">Ignored</p><p class="text-2xl font-bold text-gray-500">${ignoredCount}</p></div>
                             <div><p class="text-sm text-gray-400">Avg. Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
                             <div><p class="text-sm text-gray-400">Median</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
+                        </div>
+                         <div class="grid grid-cols-3 gap-4 text-center">
+                            ${btcHTML}
+                            ${ethHTML}
+                            ${solHTML}
                         </div>
                     </div>`;
 
