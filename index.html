@@ -9,804 +9,974 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-        }
+        body { font-family: 'Inter', sans-serif; }
+        
+        /* Animations */
+        @keyframes spin { to { transform: rotate(360deg); } }
         .loader {
-            border: 5px solid #f3f3f3;
-            border-top: 5px solid #3498db;
+            border: 4px solid #374151;
+            border-top-color: #3b82f6;
             border-radius: 50%;
-            width: 50px;
-            height: 50px;
+            width: 40px;
+            height: 40px;
             animation: spin 1s linear infinite;
         }
-        .btn-loader {
-            border: 2px solid #f3f3f3;
-            border-top: 2px solid #3498db;
-            border-radius: 50%;
-            width: 16px;
-            height: 16px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .timeframe-btn.selected {
-            background-color: #2563eb; /* blue-700 */
-            color: white;
-        }
-        .fade-up {
-            opacity: 0;
-            transform: translateY(15px);
-            transition: opacity 0.4s ease-out, transform 0.4s ease-out;
-        }
-        .fade-up.visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        #progress-bar-price {
-            transition: width 0.3s ease-out;
-        }
-        .custom-time-active {
-            box-shadow: 0 0 0 2px #2563eb; /* Equivalent to ring-2 ring-blue-600 */
-        }
-        .file-input-wrapper {
-            position: relative;
-            overflow: hidden;
-            display: inline-block;
-            cursor: pointer;
-        }
-        .file-input-wrapper input[type=file] {
-            position: absolute;
-            left: 0;
-            top: 0;
-            opacity: 0;
-            cursor: pointer;
-            width: 100%;
-            height: 100%;
-        }
-        .favorite-item:hover .delete-favorite-btn {
-            opacity: 1;
-        }
-        /* Custom Scrollbar for Favorites */
-        #favorites-list::-webkit-scrollbar {
-            width: 8px;
-        }
-        #favorites-list::-webkit-scrollbar-track {
-            background: #1f2937; /* bg-gray-800 */
-            border-radius: 10px;
-        }
-        #favorites-list::-webkit-scrollbar-thumb {
-            background: #4b5563; /* bg-gray-600 */
-            border-radius: 10px;
-        }
-        #favorites-list::-webkit-scrollbar-thumb:hover {
-            background: #6b7280; /* bg-gray-500 */
-        }
+        .fade-in { animation: fadeIn 0.3s ease-out forwards; opacity: 0; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* Modal Animation */
+        .modal-enter { opacity: 0; pointer-events: none; transform: scale(0.95); }
+        .modal-enter-active { opacity: 1; pointer-events: auto; transform: scale(1); transition: all 0.2s ease-out; }
+        .modal-exit { opacity: 0; pointer-events: none; transform: scale(0.95); transition: all 0.2s ease-in; }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #111827; }
+        ::-webkit-scrollbar-thumb { background: #374151; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4b5563; }
+
+        /* Utilities */
+        .btn-active { background-color: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+        .input-active { border-color: #3b82f6 !important; background-color: rgba(37, 99, 235, 0.1) !important; color: #60a5fa !important; }
+        .section-dimmed { opacity: 0.4; transition: opacity 0.3s ease; }
+        .section-dimmed:hover { opacity: 0.8; }
+        
+        select option { background-color: #1f2937; color: white; padding: 8px; }
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
     </style>
 </head>
-<body class="bg-gray-900 text-gray-100">
+<body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col relative">
 
-    <div class="container mx-auto p-4 md:p-8">
-        
-        <header class="text-center mb-8">
-            <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">Bybit Futures Analyzer</h1>
-            <p class="text-gray-400">Analyze watchlists or the entire futures market</p>
+    <!-- Header -->
+    <div class="container mx-auto p-4 md:p-8 flex-grow max-w-full">
+        <header class="text-center mb-10">
+            <h1 class="text-3xl md:text-5xl font-bold text-white mb-3 bg-clip-text text-transparent bg-gradient-to-r from-blue-400 to-purple-500">
+                Bybit Futures Analyzer
+            </h1>
+            <p class="text-gray-400 text-lg">Real-time market analysis & Watchlist tracking</p>
         </header>
-        
-        <div id="price-analyzer-page">
-            <div id="controls-price" class="bg-gray-800 p-6 rounded-lg shadow-lg mb-6 space-y-8"></div>
-            <main id="content-area-price"></main>
-        </div>
 
+        <div id="app" class="max-w-[1800px] mx-auto">
+            <!-- Controls Section -->
+            <section id="controls" class="bg-gray-800 rounded-2xl shadow-xl p-6 mb-8 border border-gray-700">
+                
+                <!-- Timeframe Selection -->
+                <div class="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-gray-700 pb-6 mb-6">
+                    <!-- Predefined Buttons Area -->
+                    <div class="flex flex-col items-center md:items-start gap-2">
+                        <h2 class="text-lg font-semibold text-white">Timeframe</h2>
+                        <!-- Container for buttons that will be dimmed -->
+                        <div id="buttons-container" class="transition-all duration-300">
+                            <div class="flex bg-gray-900 p-1 rounded-lg" id="timeframe-buttons">
+                                <button data-val="1" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">1h</button>
+                                <button data-val="4" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">4h</button>
+                                <button data-val="24" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors btn-active">24h</button>
+                                <button data-val="168" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">7d</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Custom Input Area -->
+                    <div id="custom-input-container" class="flex items-center gap-3 relative group transition-all duration-300 section-dimmed">
+                        <div class="flex flex-col items-end mr-2">
+                            <span id="custom-label" class="text-gray-500 text-sm font-bold tracking-wide transition-colors duration-300">CUSTOM</span>
+                        </div>
+                        <input type="number" id="custom-time-val" placeholder="12" class="w-20 bg-gray-900 border border-gray-600 text-white text-center rounded-lg py-2 focus:ring-2 focus:ring-blue-500 outline-none transition-all font-mono">
+                        <div class="relative">
+                            <select id="custom-time-unit" class="appearance-none bg-gray-900 border border-gray-600 text-white rounded-lg py-2 pl-4 pr-10 focus:ring-2 focus:ring-blue-500 outline-none cursor-pointer transition-all hover:bg-gray-800">
+                                <option value="m" class="py-2">Minutes</option>
+                                <option value="h" selected class="py-2">Hours</option>
+                                <option value="d" class="py-2">Days</option>
+                            </select>
+                            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-400">
+                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Action Buttons Grid -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <!-- Market Analysis -->
+                    <div class="flex flex-col gap-4">
+                        <h3 class="text-xl font-bold text-white">Full Market</h3>
+                        <div>
+                            <label class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1 block">Exclude Symbols</label>
+                            <input type="text" id="exclude-input" value="BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT" class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="BTC, ETH...">
+                        </div>
+                        <button id="btn-analyze-market" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-all transform active:scale-95 flex justify-center items-center gap-2">
+                            <span>Analyze Market</span>
+                        </button>
+                    </div>
+
+                    <!-- Watchlist Analysis (Redesigned) -->
+                    <div class="flex flex-col gap-4 border-l-0 md:border-l border-gray-700 md:pl-8">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xl font-bold text-white">Watchlist</h3>
+                        </div>
+
+                        <!-- Upload & Favorites Area -->
+                        <div class="flex flex-col gap-3 h-full">
+                            <!-- Upload Button -->
+                            <label class="cursor-pointer bg-gray-700 hover:bg-gray-650 text-gray-300 font-medium py-3 rounded-xl text-center transition-colors border border-dashed border-gray-500 relative group hover:text-white hover:border-gray-400">
+                                <span class="flex items-center justify-center gap-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"></path></svg>
+                                    Load New JSON File
+                                </span>
+                                <input type="file" id="file-upload" accept=".json" class="hidden">
+                            </label>
+
+                            <!-- Favorites List (Vertical) -->
+                            <div class="flex-grow">
+                                <div class="flex justify-between items-end mb-2">
+                                    <p class="text-xs text-gray-500 font-semibold uppercase tracking-wider">Saved Lists</p>
+                                    <button id="btn-save-fav" class="text-xs flex items-center gap-1 text-yellow-500 hover:text-yellow-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Save active file to favorites" disabled>
+                                        <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z"></path></svg>
+                                        <span>Save Current</span>
+                                    </button>
+                                </div>
+                                <div id="favorites-list" class="space-y-2 max-h-[200px] overflow-y-auto pr-1 custom-scrollbar">
+                                    <!-- Vertical Items Injected Here -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Active Selection Panel (New) -->
+                        <div id="active-watchlist-panel" class="hidden mt-2 bg-blue-900/20 border border-blue-500/30 p-4 rounded-xl flex items-center justify-between animate-fade-in">
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <div class="bg-blue-500/20 p-2 rounded-lg text-blue-400 flex-shrink-0">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                                </div>
+                                <div class="min-w-0">
+                                    <p class="text-[10px] text-blue-300 uppercase font-bold tracking-wider">Selected for Analysis</p>
+                                    <p id="active-filename" class="text-white font-medium truncate text-sm"></p>
+                                </div>
+                            </div>
+                            <button id="btn-clear-active" class="text-gray-400 hover:text-red-400 p-1 rounded-md hover:bg-gray-800 transition-colors" title="Clear selection">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                            </button>
+                        </div>
+
+                        <button id="btn-analyze-watchlist" disabled class="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-gray-800 disabled:text-gray-500 disabled:border disabled:border-gray-700 disabled:cursor-not-allowed text-white font-bold py-3 rounded-xl transition-all transform active:scale-95 shadow-lg shadow-blue-900/20 mt-2">
+                            Analyze Watchlist
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loader -->
+            <div id="loader" class="hidden flex-col items-center justify-center py-12">
+                <div class="loader mb-4"></div>
+                <p id="loader-text" class="text-blue-400 font-medium animate-pulse">Fetching data...</p>
+                <div class="w-64 h-2 bg-gray-700 rounded-full mt-4 overflow-hidden">
+                    <div id="progress-bar" class="h-full bg-blue-500 transition-all duration-300" style="width: 0%"></div>
+                </div>
+                <p id="progress-stats" class="text-xs text-gray-500 mt-2">0/0</p>
+            </div>
+
+            <!-- Error Message -->
+            <div id="error-box" class="hidden bg-red-900/50 border border-red-500 text-red-200 p-4 rounded-xl mb-8 text-center"></div>
+
+            <!-- Results Dashboard -->
+            <div id="results-area" class="fade-in hidden pb-20"></div>
+        </div>
     </div>
 
+    <!-- MODAL FOR IGNORED SYMBOLS (Confirm Delete Removed) -->
+    <div id="modal-backdrop" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden items-center justify-center transition-opacity duration-300 opacity-0" aria-hidden="true">
+        <div id="modal-content" class="bg-gray-800 rounded-2xl border border-gray-700 p-6 max-w-lg w-full mx-4 shadow-2xl transform scale-95 transition-transform duration-300 flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b border-gray-700 pb-4">
+                <div>
+                    <h3 id="modal-title" class="text-xl font-bold text-white">Ignored Symbols</h3>
+                    <p id="modal-desc" class="text-sm text-gray-400">Excluded from analysis based on your filter</p>
+                </div>
+                <button id="btn-close-modal" class="text-gray-400 hover:text-white bg-gray-700 hover:bg-gray-600 rounded-lg p-2 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            
+            <!-- Normal Content -->
+            <div id="modal-body-list" class="overflow-y-auto pr-2 custom-scrollbar flex-grow">
+                <div id="modal-list" class="flex flex-wrap gap-2 content-start"></div>
+            </div>
+            <div id="modal-footer" class="mt-4 pt-4 border-t border-gray-700 text-right">
+                <span id="modal-count-display" class="text-sm text-gray-500 font-mono"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- TEMPLATES -->
+    
+    <!-- Template: Summary Stats Card -->
+    <template id="tpl-summary-card">
+        <div class="bg-gray-800 rounded-xl shadow-lg border border-gray-700 p-6 fade-in flex flex-col">
+            <div class="flex flex-col md:flex-row justify-between items-start mb-6 gap-4">
+                <div>
+                    <h3 class="text-2xl font-bold text-white card-title">Title</h3>
+                    <p class="text-sm text-gray-400 card-subtitle">Subtitle</p>
+                </div>
+                <div class="flex gap-6 bg-gray-900/50 p-3 rounded-lg border border-gray-700">
+                    <div class="text-center px-2">
+                        <p class="text-xs text-gray-400 uppercase">Avg</p>
+                        <p class="text-xl font-bold card-avg">0.00%</p>
+                    </div>
+                    <div class="text-center px-2 border-l border-gray-700">
+                        <p class="text-xs text-gray-400 uppercase">Median</p>
+                        <p class="text-xl font-bold card-median">0.00%</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card-major-movers grid grid-cols-3 gap-4 mb-6 hidden"></div>
+
+            <div class="grid grid-cols-4 gap-4 mb-6 bg-gray-900/30 p-4 rounded-lg">
+                <div class="text-center">
+                    <span class="text-xs text-gray-500 block">Analyzed</span>
+                    <span class="text-lg font-semibold text-white card-count">0</span>
+                </div>
+                <div class="text-center border-l border-gray-700">
+                    <span class="text-xs text-gray-500 block">Ignored</span>
+                    <button class="text-lg font-semibold text-gray-500 card-ignored transition-colors focus:outline-none">0</button>
+                </div>
+                <div class="text-center border-l border-gray-700">
+                    <span class="text-xs text-gray-500 block">Gainers</span>
+                    <span class="text-lg font-semibold text-green-500 card-gainers">0</span>
+                </div>
+                <div class="text-center border-l border-gray-700">
+                    <span class="text-xs text-gray-500 block">Losers</span>
+                    <span class="text-lg font-semibold text-red-500 card-losers">0</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 2xl:grid-cols-2 gap-6 card-tables"></div>
+        </div>
+    </template>
+
+    <!-- Template: Static Table -->
+    <template id="tpl-table">
+        <div class="bg-gray-900 rounded-lg overflow-hidden border border-gray-700 flex flex-col">
+            <div class="p-3 bg-gray-800/80 border-b border-gray-700 flex justify-between items-center">
+                <h4 class="font-semibold text-sm text-gray-300 table-header-title flex items-center gap-2">Top Gainers</h4>
+            </div>
+            <div class="w-full">
+                <table class="w-full text-sm text-left">
+                    <thead class="text-xs text-gray-500 uppercase bg-gray-800">
+                        <tr>
+                            <th class="px-3 py-3 text-gray-400 font-semibold">Symbol</th>
+                            <th class="px-3 py-3 text-right text-gray-400 font-semibold">Change %</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-800 table-body"></tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <!-- Template: Table Row -->
+    <template id="tpl-row">
+        <tr class="hover:bg-gray-800/50 transition-colors group">
+            <td class="px-3 py-2 font-medium text-gray-300 group-hover:text-white">
+                <a href="#" target="_blank" class="row-link flex items-center gap-2">
+                    <span class="row-symbol">BTCUSDT</span>
+                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                </a>
+            </td>
+            <td class="px-3 py-2 text-right font-bold row-change">0.00%</td>
+        </tr>
+    </template>
+
     <script type="module">
-        // --- CONFIGURATION ---
+        /**
+         * CONFIGURATION
+         */
         const Config = {
-            API_BASE_URL: 'https://api.bybit.com',
-            INSTRUMENTS_INFO_ENDPOINT: '/v5/market/instruments-info?category=linear',
-            KLINE_ENDPOINT: '/v5/market/kline',
-            TICKERS_ENDPOINT: '/v5/market/tickers',
-            CACHE_DURATION_MS: 3600 * 1000, // Cache instrument list for 1 hour
-            FAVORITES_STORAGE_KEY: 'bybitAnalyzer_favorites'
+            API_URL: 'https://api.bybit.com',
+            ENDPOINTS: {
+                INSTRUMENTS: '/v5/market/instruments-info?category=linear&limit=1000',
+                TICKERS: '/v5/market/tickers?category=linear',
+                KLINE: '/v5/market/kline'
+            },
+            STORAGE_KEYS: {
+                FAVORITES: 'bybit_analyzer_favs_v2',
+                CACHE_INSTRUMENTS: 'bybit_instruments_cache'
+            }
         };
 
-        // --- UTILITIES ---
+        /**
+         * UTILITIES
+         */
         const Utils = {
-            getPlural: (value, unit) => `${Math.round(value)} ${Math.round(value) === 1 ? unit : unit + 's'}`,
-            formatTimeframe: (totalHours) => {
-                if (totalHours < 1) return Utils.getPlural(totalHours * 60, 'minute');
-                if (totalHours < 24) return Utils.getPlural(totalHours, 'hour');
-                return Utils.getPlural(totalHours / 24, 'day');
+            wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+            getColorClass: (val) => val > 0 ? 'text-green-500' : (val < 0 ? 'text-red-500' : 'text-gray-400'),
+            
+            calculateMedian: (values) => {
+                if (values.length === 0) return 0;
+                const sorted = [...values].sort((a, b) => a - b);
+                const mid = Math.floor(sorted.length / 2);
+                return sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
             },
+
             async processWithConcurrency(items, concurrencyLimit, processFn, progressCallback) {
                 const results = [];
-                const queue = [...items];
+                const queue = [...items]; 
                 let processedCount = 0;
-                const executeTask = async () => {
-                    while(queue.length > 0) {
+                const total = items.length;
+
+                const worker = async () => {
+                    while (queue.length > 0) {
                         const item = queue.shift();
-                        if(item) {
-                            try {
-                                const result = await processFn(item);
-                                if (result) results.push(result);
-                            } catch (e) {
-                                console.error(`Error processing item ${item}:`, e);
-                            } finally {
-                                processedCount++;
-                                if (progressCallback) progressCallback(processedCount, items.length);
-                            }
+                        try {
+                            const result = await processFn(item);
+                            if (result !== null) results.push(result);
+                        } catch (e) {
+                            // Ignore errors
+                        } finally {
+                            processedCount++;
+                            if (progressCallback) progressCallback(processedCount, total);
                         }
                     }
                 };
-                const workers = Array(concurrencyLimit).fill(null).map(() => executeTask());
+
+                const workers = Array(concurrencyLimit).fill(null).map(() => worker());
                 await Promise.all(workers);
                 return results;
             }
         };
 
-        // --- API SERVICE ---
-        const ApiService = {
-            async fetchInstrumentsInfo() {
-                const cacheKey = 'bybitAnalyzer_instruments';
-                try {
-                    const cachedData = sessionStorage.getItem(cacheKey);
-                    if (cachedData) {
-                        const { timestamp, instruments } = JSON.parse(cachedData);
-                        if (Date.now() - timestamp < Config.CACHE_DURATION_MS) {
-                            return instruments;
-                        }
-                    }
-                } catch (e) { console.error("Failed to read from sessionStorage", e); }
-
-                let allInstruments = []; 
-                let cursor = ''; 
-                while (true) {
-                    const url = `${Config.API_BASE_URL}${Config.INSTRUMENTS_INFO_ENDPOINT}&limit=1000${cursor ? `&cursor=${cursor}` : ''}`;
-                    const response = await fetch(url);
-                    if (!response.ok) throw new Error(`Bybit API Error: ${response.statusText}`);
-                    const data = await response.json();
-                    if (data.retCode !== 0) throw new Error(`Bybit API Response Error: ${data.retMsg}`);
-                    
-                    allInstruments.push(...data.result.list
-                        .filter(item => item.status === 'Trading' && item.symbol.endsWith('USDT'))
-                        .map(item => ({ symbol: item.symbol }))
-                    );
-                    
-                    cursor = data.result.nextPageCursor;
-                    if (!cursor) break;
+        /**
+         * API SERVICE
+         */
+        const Api = {
+            async fetchInstruments() {
+                const cached = sessionStorage.getItem(Config.STORAGE_KEYS.CACHE_INSTRUMENTS);
+                if (cached) {
+                    const { ts, data } = JSON.parse(cached);
+                    if (Date.now() - ts < 3600 * 1000) return data; 
                 }
-                
-                try {
-                    sessionStorage.setItem(cacheKey, JSON.stringify({ timestamp: Date.now(), instruments: allInstruments }));
-                } catch (e) { console.error("Failed to save to sessionStorage", e); }
 
-                return allInstruments;
+                let list = [];
+                let cursor = '';
+                try {
+                    do {
+                        const url = `${Config.API_URL}${Config.ENDPOINTS.INSTRUMENTS}${cursor ? `&cursor=${cursor}` : ''}`;
+                        const res = await fetch(url);
+                        const json = await res.json();
+                        if (json.retCode !== 0) throw new Error(json.retMsg);
+                        
+                        const activeItems = json.result.list
+                            .filter(i => i.status === 'Trading' && i.symbol.endsWith('USDT'))
+                            .map(i => i.symbol);
+                        list.push(...activeItems);
+                        cursor = json.result.nextPageCursor;
+                    } while (cursor);
+
+                    sessionStorage.setItem(Config.STORAGE_KEYS.CACHE_INSTRUMENTS, JSON.stringify({
+                        ts: Date.now(),
+                        data: list
+                    }));
+                    return list;
+                } catch (e) { throw new Error("Failed to fetch instruments: " + e.message); }
             },
+
             async fetchAllTickers() {
-                const url = `${Config.API_BASE_URL}${Config.TICKERS_ENDPOINT}?category=linear`;
-                const response = await fetch(url);
-                if (!response.ok) throw new Error('Failed to fetch tickers');
-                const data = await response.json();
-                if(data.retCode !== 0) throw new Error(`Ticker API Error: ${data.retMsg}`);
-                return data.result.list;
+                const res = await fetch(`${Config.API_URL}${Config.ENDPOINTS.TICKERS}`);
+                const json = await res.json();
+                if (json.retCode !== 0) throw new Error(json.retMsg);
+                return json.result.list;
             },
-            async fetchKlineData(symbol, time, interval) {
-                const url = `${Config.API_BASE_URL}${Config.KLINE_ENDPOINT}?category=linear&symbol=${symbol}&interval=${interval}&start=${time}&limit=1`;
-                const response = await fetch(url);
-                if (!response.ok) return null;
-                const data = await response.json();
-                return (data.retCode === 0 && data.result.list.length > 0) ? data.result.list[0] : null;
+
+            async fetchKline(symbol, interval, start) {
+                let retries = 3;
+                while (retries > 0) {
+                    try {
+                        const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&start=${start}&limit=1`;
+                        const res = await fetch(url);
+                        if (!res.ok) throw new Error('Network error');
+                        const json = await res.json();
+                        if (json.retCode !== 0) throw new Error('API error');
+                        return json.result.list.length > 0 ? json.result.list[0] : null;
+                    } catch (e) {
+                        retries--;
+                        if (retries > 0) await Utils.wait(300); // Wait 300ms before retry
+                    }
+                }
+                return null;
             }
         };
 
-        // --- RENDERER ---
-        const Renderer = {
-            createCommonControlsHTML() {
-                 const timeFrameControls = `
-                    <div class="pb-8 border-b border-gray-700/60">
-                        <h2 class="text-xl font-semibold text-white text-center mb-4">Select Timeframe</h2>
-                        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 sm:gap-6">
-                            <div class="flex items-center gap-1 p-1 bg-gray-900/50 rounded-lg">
-                                <button data-hours="1" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">1h</button>
-                                <button data-hours="4" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">4h</button>
-                                <button data-hours="24" class="timeframe-btn selected bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">24h</button>
-                                <button data-hours="168" class="timeframe-btn bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 rounded-md transition duration-200">7d</button>
-                            </div>
-                            <div class="text-gray-500 font-medium hidden sm:block">or</div>
-                            <div class="flex items-center gap-2">
-                                 <input type="number" id="custom-time-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-24 p-2.5 transition-shadow duration-200" placeholder="12">
-                                 <select id="custom-time-unit" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block p-2.5 appearance-none text-center transition-shadow duration-200">
-                                     <option value="minutes">Minutes</option>
-                                     <option value="hours" selected>Hours</option>
-                                     <option value="days">Days</option>
-                                 </select>
-                            </div>
-                        </div>
-                    </div>`;
-
-                 return `
-                    ${timeFrameControls}
-
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 pt-8">
-                        <!-- Full Market Analysis Card -->
-                        <div class="bg-gray-700/50 p-6 rounded-lg flex flex-col">
-                             <h2 class="text-2xl font-bold text-center text-white mb-4">Analyze Full Market</h2>
-                             <div class="pt-2 flex-grow">
-                               <label for="exclude-input" class="block mb-2 text-sm font-medium text-gray-300 text-center">Exclude tokens (comma-separated)</label>
-                               <input type="text" id="exclude-input" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full md:w-5/6 mx-auto p-2.5" value="BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT">
-                             </div>
-                             <div class="text-center mt-6">
-                                <button id="analyze-market-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center justify-center gap-2 min-w-[200px] w-full sm:w-auto mx-auto">
-                                    <span class="btn-text">Analyze Market</span>
-                                    <span class="btn-loader-container"></span>
-                                </button>
-                             </div>
-                        </div>
-
-                        <!-- Watchlist Analysis Card -->
-                        <div class="bg-gray-700/50 p-6 rounded-lg flex flex-col">
-                             <h2 class="text-2xl font-bold text-center text-white mb-4">Analyze from File</h2>
-                             <div class="flex-grow flex flex-col items-center justify-center gap-4 pt-2">
-                                <label for="watchlist-upload" class="file-input-wrapper bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg cursor-pointer transition-colors duration-200 flex items-center justify-center w-full max-w-xs">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                                    </svg>
-                                    <span>Select JSON File</span>
-                                    <input type="file" id="watchlist-upload" accept=".json"/>
-                                </label>
-                                <div id="file-info-container" class="hidden items-center gap-2 text-sm bg-gray-900/50 p-2 rounded-md w-full max-w-xs">
-                                    <span id="file-info-name" class="text-gray-300 truncate flex-grow"></span>
-                                    <button id="save-favorite-btn" title="Save to favorites" class="text-gray-400 hover:text-red-500 transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                            <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z" />
-                                        </svg>
-                                    </button>
-                                    <button id="clear-file-btn" title="Clear selection" class="text-gray-400 hover:text-red-500 transition-colors">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                       </svg>
-                                   </button>
-                                </div>
-                             </div>
-                             <div id="favorites-container" class="mt-4 pt-4 border-t border-gray-600/50">
-                                <h3 class="text-sm font-semibold text-center text-gray-400 mb-2">Favorites</h3>
-                                <div id="favorites-list" class="space-y-2 max-h-32 overflow-y-auto"></div>
-                             </div>
-                             <div class="text-center mt-6">
-                                 <button id="analyze-watchlist-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-3 px-6 rounded-lg transition duration-300 flex items-center justify-center gap-2 min-w-[200px] w-full sm:w-auto disabled:bg-gray-500 disabled:cursor-not-allowed mx-auto" disabled>
-                                    <span class="btn-text">Analyze Watchlist</span>
-                                    <span class="btn-loader-container"></span>
-                                 </button>
-                             </div>
-                        </div>
-                    </div>
-                 `;
+        /**
+         * UI RENDERER
+         */
+        const UI = {
+            els: {
+                app: document.getElementById('app'),
+                controls: document.getElementById('controls'),
+                loader: document.getElementById('loader'),
+                loaderText: document.getElementById('loader-text'),
+                progressBar: document.getElementById('progress-bar'),
+                progressStats: document.getElementById('progress-stats'),
+                errorBox: document.getElementById('error-box'),
+                resultsArea: document.getElementById('results-area'),
+                timeButtons: document.querySelectorAll('#timeframe-buttons button'),
+                buttonsContainer: document.getElementById('buttons-container'),
+                customContainer: document.getElementById('custom-input-container'),
+                customVal: document.getElementById('custom-time-val'),
+                customUnit: document.getElementById('custom-time-unit'),
+                customLabel: document.getElementById('custom-label'),
+                favList: document.getElementById('favorites-list'),
+                fileInput: document.getElementById('file-upload'),
+                analyzeWatchlistBtn: document.getElementById('btn-analyze-watchlist'),
+                btnSaveFav: document.getElementById('btn-save-fav'),
+                // Active File Els
+                activePanel: document.getElementById('active-watchlist-panel'),
+                activeFilename: document.getElementById('active-filename'),
+                btnClearActive: document.getElementById('btn-clear-active'),
+                // Modal Els
+                modalBackdrop: document.getElementById('modal-backdrop'),
+                modalContent: document.getElementById('modal-content'),
+                modalList: document.getElementById('modal-list'),
+                modalCountDisplay: document.getElementById('modal-count-display'),
+                closeModalBtn: document.getElementById('btn-close-modal'),
+                // Modal dynamic content areas
+                modalTitle: document.getElementById('modal-title'),
+                modalDesc: document.getElementById('modal-desc'),
+                modalBodyList: document.getElementById('modal-body-list'),
+                modalFooter: document.getElementById('modal-footer')
             },
-            createResultsContainerHTML(idPrefix) {
-                return `
-                <div id="loader-${idPrefix}" class="hidden flex-col items-center justify-center p-10">
-                    <div class="loader mb-4"></div>
-                    <p class="text-lg text-gray-400 mb-4">Loading data...</p>
-                    <div class="w-full bg-gray-700 rounded-full h-2.5"><div id="progress-bar-${idPrefix}" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div></div>
-                    <p id="progress-text-${idPrefix}" class="text-sm text-gray-400 mt-2">Fetching symbols...</p>
-                </div>
-                <div id="error-message-${idPrefix}" class="hidden bg-red-900 border border-red-600 text-red-100 px-4 py-3 rounded-lg relative" role="alert">
-                    <strong class="font-bold">Error!</strong>
-                    <span class="block sm:inline" id="error-text-${idPrefix}"></span>
-                </div>
-                <!-- Container for all results -->
-                <div id="results-dashboard-${idPrefix}" class="hidden"></div>
-                `;
+
+            setLoading(isLoading, text = 'Loading...') {
+                if (isLoading) {
+                    this.els.controls.classList.add('opacity-50', 'pointer-events-none');
+                    this.els.loader.classList.remove('hidden');
+                    this.els.loader.classList.add('flex');
+                    this.els.loaderText.textContent = text;
+                    this.els.resultsArea.classList.add('hidden');
+                    this.els.errorBox.classList.add('hidden');
+                    this.updateProgress(0, 0);
+                } else {
+                    this.els.controls.classList.remove('opacity-50', 'pointer-events-none');
+                    this.els.loader.classList.add('hidden');
+                    this.els.loader.classList.remove('flex');
+                }
             },
+
+            updateProgress(current, total) {
+                const pct = total > 0 ? (current / total) * 100 : 0;
+                this.els.progressBar.style.width = `${pct}%`;
+                this.els.progressStats.textContent = total > 0 ? `${current} / ${total}` : '';
+            },
+
+            showError(msg) {
+                this.els.errorBox.textContent = msg;
+                this.els.errorBox.classList.remove('hidden');
+                this.setLoading(false);
+            },
+
+            showResults() { this.els.resultsArea.classList.remove('hidden'); },
+            clearResults() { this.els.resultsArea.innerHTML = ''; },
+
+            // --- Active State Logic ---
+            updateActiveFileUI(filename, isReady, isSaved) {
+                if (isReady && filename) {
+                    this.els.activePanel.classList.remove('hidden');
+                    this.els.activePanel.classList.add('flex');
+                    this.els.activeFilename.textContent = filename;
+                    this.els.analyzeWatchlistBtn.disabled = false;
+                    
+                    if (isSaved) {
+                        this.els.btnSaveFav.disabled = true;
+                        this.els.btnSaveFav.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Saved`;
+                        this.els.btnSaveFav.classList.add('text-green-500', 'opacity-50', 'cursor-not-allowed');
+                        this.els.btnSaveFav.classList.remove('text-yellow-500', 'hover:text-yellow-400');
+                    } else {
+                        this.els.btnSaveFav.disabled = false;
+                        this.els.btnSaveFav.innerHTML = `<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-3.125L5 18V4z"></path></svg> Save Current`;
+                        this.els.btnSaveFav.classList.remove('text-green-500', 'opacity-50', 'cursor-not-allowed');
+                        this.els.btnSaveFav.classList.add('text-yellow-500', 'hover:text-yellow-400');
+                    }
+                } else {
+                    this.els.activePanel.classList.add('hidden');
+                    this.els.activePanel.classList.remove('flex');
+                    this.els.analyzeWatchlistBtn.disabled = true;
+                    this.els.btnSaveFav.disabled = true;
+                    this.els.fileInput.value = '';
+                }
+            },
+
+            // --- Modal Logic ---
+            showModal(type, data) {
+                // Simple Ignored Modal only
+                if (type === 'ignored') {
+                    this.els.modalTitle.textContent = 'Ignored Symbols';
+                    this.els.modalDesc.textContent = 'Excluded from analysis based on your filter';
+                    this.els.modalBodyList.classList.remove('hidden');
+                    this.els.modalFooter.classList.remove('hidden');
+                    
+                    this.els.modalList.innerHTML = '';
+                    data.forEach(sym => {
+                        const tag = document.createElement('span');
+                        tag.className = 'bg-gray-700 text-gray-300 text-xs font-medium px-2.5 py-1 rounded border border-gray-600';
+                        tag.textContent = sym.replace('USDT', '');
+                        this.els.modalList.appendChild(tag);
+                    });
+                    this.els.modalCountDisplay.textContent = `Total: ${data.length}`;
+                    
+                    this.els.modalBackdrop.classList.remove('hidden');
+                    this.els.modalBackdrop.classList.add('flex');
+                    
+                    requestAnimationFrame(() => {
+                        this.els.modalBackdrop.classList.remove('opacity-0');
+                        this.els.modalContent.classList.remove('scale-95');
+                        this.els.modalContent.classList.add('scale-100');
+                    });
+                }
+            },
+
+            closeModal() {
+                this.els.modalBackdrop.classList.add('opacity-0');
+                this.els.modalContent.classList.remove('scale-100');
+                this.els.modalContent.classList.add('scale-95');
+                setTimeout(() => {
+                    this.els.modalBackdrop.classList.add('hidden');
+                    this.els.modalBackdrop.classList.remove('flex');
+                }, 300);
+            },
+
+            renderCard(title, subtitle, data, ignoredSymbols = [], majorMovers = null) {
+                const tpl = document.getElementById('tpl-summary-card').content.cloneNode(true);
+                
+                const values = data.map(d => d.change);
+                const sum = values.reduce((a, b) => a + b, 0);
+                const avg = values.length ? sum / values.length : 0;
+                const median = Utils.calculateMedian(values);
+                const gainers = values.filter(v => v > 0).length;
+                const losers = values.filter(v => v < 0).length;
+
+                tpl.querySelector('.card-title').textContent = title;
+                tpl.querySelector('.card-subtitle').textContent = subtitle;
+                
+                const avgEl = tpl.querySelector('.card-avg');
+                avgEl.textContent = `${avg > 0 ? '+' : ''}${avg.toFixed(2)}%`;
+                avgEl.className = `text-xl font-bold card-avg ${Utils.getColorClass(avg)}`;
+
+                const medEl = tpl.querySelector('.card-median');
+                medEl.textContent = `${median > 0 ? '+' : ''}${median.toFixed(2)}%`;
+                medEl.className = `text-xl font-bold card-median ${Utils.getColorClass(median)}`;
+
+                tpl.querySelector('.card-count').textContent = data.length;
+                
+                const ignoredCount = ignoredSymbols.length;
+                const ignoredBtn = tpl.querySelector('.card-ignored');
+                ignoredBtn.textContent = ignoredCount;
+                
+                if (ignoredCount > 0) {
+                    ignoredBtn.classList.remove('text-gray-500');
+                    ignoredBtn.classList.add('text-blue-400', 'hover:text-blue-300', 'underline', 'decoration-dotted', 'underline-offset-4', 'cursor-pointer');
+                    ignoredBtn.addEventListener('click', () => this.showModal('ignored', ignoredSymbols));
+                } else {
+                    ignoredBtn.disabled = true;
+                    ignoredBtn.classList.add('cursor-default');
+                }
+
+                tpl.querySelector('.card-gainers').textContent = gainers;
+                tpl.querySelector('.card-losers').textContent = losers;
+
+                if (majorMovers && majorMovers.length > 0) {
+                    const moversContainer = tpl.querySelector('.card-major-movers');
+                    moversContainer.classList.remove('hidden');
+                    majorMovers.forEach(m => {
+                        const div = document.createElement('div');
+                        div.className = 'bg-gray-900/50 p-3 rounded-lg border border-gray-700 text-center';
+                        div.innerHTML = `
+                            <div class="text-sm text-gray-400 font-bold mb-1">${m.symbol.replace('USDT','')}</div>
+                            <div class="text-lg font-bold ${Utils.getColorClass(m.change)}">${m.change > 0 ? '+' : ''}${m.change}%</div>
+                        `;
+                        moversContainer.appendChild(div);
+                    });
+                }
+
+                const tablesContainer = tpl.querySelector('.card-tables');
+                
+                if (data.length <= 10) {
+                    tablesContainer.classList.remove('grid-cols-1', '2xl:grid-cols-2'); 
+                    const sortedData = [...data].sort((a,b) => b.change - a.change);
+                    tablesContainer.appendChild(this.createTable('📊 Performance', sortedData));
+                } else {
+                    const gainersData = [...data].sort((a,b) => b.change - a.change).slice(0, 10);
+                    tablesContainer.appendChild(this.createTable('🚀 Top 10 Gainers', gainersData));
+
+                    const losersData = [...data].sort((a,b) => a.change - b.change).slice(0, 10);
+                    tablesContainer.appendChild(this.createTable('📉 Top 10 Losers', losersData));
+                }
+
+                return tpl.firstElementChild;
+            },
+
+            createTable(title, rowsData) {
+                const tpl = document.getElementById('tpl-table').content.cloneNode(true);
+                tpl.querySelector('.table-header-title').innerHTML = title;
+                const tbody = tpl.querySelector('.table-body');
+                
+                rowsData.forEach(item => {
+                    const row = document.getElementById('tpl-row').content.cloneNode(true);
+                    row.querySelector('.row-symbol').textContent = item.symbol;
+                    row.querySelector('.row-link').href = `https://www.bybit.com/trade/usdt/${item.symbol}`;
+                    const changeEl = row.querySelector('.row-change');
+                    changeEl.textContent = `${item.change > 0 ? '+' : ''}${item.change.toFixed(2)}%`;
+                    changeEl.className = `px-3 py-2 text-right font-bold row-change ${Utils.getColorClass(item.change)}`;
+                    tbody.appendChild(row);
+                });
+                return tpl;
+            }
         };
 
-        // --- ANALYZER CLASS ---
-        class PriceAnalyzer {
-            constructor(id) {
-                this.id = id;
-                this.isRunning = false;
+        /**
+         * MAIN LOGIC
+         */
+        class Analyzer {
+            constructor() {
                 this.watchlists = null;
-                this.currentFileName = null;
-                this.controlsContainer = document.getElementById(`controls-${id}`);
-                this.contentContainer = document.getElementById(`content-area-${id}`);
+                this.currentFile = null;
+                this.activeFavName = null; // Track delete target
+                this.initListeners();
+                this.renderFavorites(); 
+                this.selectTimeframe(24);
             }
 
-            getUI() {
-                return {
-                    showLoader: () => document.getElementById(`loader-${this.id}`).classList.replace('hidden', 'flex'),
-                    hideLoader: () => document.getElementById(`loader-${this.id}`).classList.replace('flex', 'hidden'),
-                    showError: (message) => {
-                        document.getElementById(`error-message-${this.id}`).classList.remove('hidden');
-                        document.getElementById(`error-text-${this.id}`).textContent = message;
-                        document.getElementById(`results-dashboard-${this.id}`).classList.add('hidden');
-                    },
-                    hideError: () => document.getElementById(`error-message-${this.id}`).classList.add('hidden'),
-                    showResults: () => {
-                         const dashboard = document.getElementById(`results-dashboard-${this.id}`);
-                         dashboard.classList.remove('hidden');
-                         dashboard.querySelectorAll('.result-card').forEach((el, index) => {
-                            el.classList.add('fade-up');
-                            setTimeout(() => el.classList.add('visible'), index * 50);
-                         });
+            initListeners() {
+                UI.els.timeButtons.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        this.selectTimeframe(btn.dataset.val);
+                        UI.els.customVal.value = '';
+                        this.updateCustomInputState(false);
+                    });
+                });
+
+                [UI.els.customVal, UI.els.customUnit].forEach(el => {
+                    el.addEventListener('input', () => this.handleCustomInput());
+                    el.addEventListener('focus', () => this.handleCustomInput());
+                });
+
+                document.getElementById('btn-analyze-market').addEventListener('click', () => this.runAnalysis('market'));
+                UI.els.analyzeWatchlistBtn.addEventListener('click', () => this.runAnalysis('watchlist'));
+                
+                // File Upload
+                UI.els.fileInput.addEventListener('change', (e) => this.handleFileUpload(e.target.files[0]));
+                
+                // Clear Active Button
+                UI.els.btnClearActive.addEventListener('click', () => this.clearActiveFile());
+                
+                // Save Favorite Button
+                UI.els.btnSaveFav.addEventListener('click', () => this.saveFavorite());
+                
+                // Modal listeners
+                UI.els.closeModalBtn.addEventListener('click', () => UI.closeModal());
+                UI.els.modalBackdrop.addEventListener('click', (e) => {
+                    if (e.target === UI.els.modalBackdrop) UI.closeModal();
+                });
+            }
+
+            handleCustomInput() {
+                UI.els.timeButtons.forEach(b => b.classList.remove('btn-active')); 
+                this.selectedHours = null; 
+                this.updateCustomInputState(true);
+            }
+
+            updateCustomInputState(isActive) {
+                const inputs = [UI.els.customVal, UI.els.customUnit];
+                inputs.forEach(el => {
+                    if (isActive) {
+                        el.classList.add('input-active');
+                        el.classList.remove('border-gray-600');
+                    } else {
+                        el.classList.remove('input-active');
+                        el.classList.add('border-gray-600');
                     }
+                });
+
+                if (isActive) {
+                    UI.els.customLabel.classList.add('text-blue-500');
+                    UI.els.customLabel.classList.remove('text-gray-500');
+                } else {
+                    UI.els.customLabel.classList.remove('text-blue-500');
+                    UI.els.customLabel.classList.add('text-gray-500');
+                }
+
+                if (isActive) {
+                    UI.els.buttonsContainer.classList.add('section-dimmed');
+                    UI.els.customContainer.classList.remove('section-dimmed');
+                } else {
+                    UI.els.buttonsContainer.classList.remove('section-dimmed');
+                    UI.els.customContainer.classList.add('section-dimmed');
                 }
             }
-            
-            getProgress() {
-                 return {
-                    update: (current, total, text) => {
-                        const percent = total > 0 ? (current / total) * 100 : 0;
-                        document.getElementById(`progress-bar-${this.id}`).style.width = `${percent}%`;
-                        document.getElementById(`progress-text-${this.id}`).textContent = text || `Processing ${current} / ${total}...`;
-                    }
+
+            selectTimeframe(val) {
+                UI.els.timeButtons.forEach(b => {
+                    if (b.dataset.val == val) b.classList.add('btn-active');
+                    else b.classList.remove('btn-active');
+                });
+                this.selectedHours = parseFloat(val);
+                this.updateCustomInputState(false); 
+            }
+
+            getTimeframeConfig() {
+                let hours = this.selectedHours;
+                if (!hours) {
+                    const val = parseFloat(UI.els.customVal.value);
+                    const unit = UI.els.customUnit.value;
+                    if (!val || val <= 0) throw new Error("Invalid Timeframe");
+                    
+                    if (unit === 'm') hours = val / 60;
+                    else if (unit === 'd') hours = val * 24;
+                    else hours = val;
                 }
+                return { hours, is24h: hours === 24 };
             }
 
-            setButtonLoading(isLoading, button) {
-                if (!button) return;
-                const text = button.querySelector('.btn-text');
-                const loaderContainer = button.querySelector('.btn-loader-container');
-                button.disabled = isLoading;
-                if (text) text.style.display = isLoading ? 'none' : 'inline';
-                if (loaderContainer) loaderContainer.innerHTML = isLoading ? '<div class="btn-loader"></div>' : '';
-            }
-
-            async runAnalysis(mode, triggerButton) {
-                if (this.isRunning) return;
-                
-                this.isRunning = true;
-                this.setButtonLoading(true, triggerButton);
-                this.getUI().hideError();
-                this.getUI().showLoader();
-
-                try {
-                    const hours = this.getSelectedTimeframe();
-                    if (isNaN(hours)) throw new Error("Invalid timeframe selected.");
-
-                    let symbolsToFetch;
-                    if (mode === 'watchlist') {
-                        if (!this.watchlists) throw new Error("No watchlist file loaded.");
-                        const longSymbols = Object.keys(this.watchlists.long_watchlist || {});
-                        const shortSymbols = Object.keys(this.watchlists.short_watchlist || {});
-                        symbolsToFetch = [...new Set([...longSymbols, ...shortSymbols])];
-                        if (symbolsToFetch.length === 0) throw new Error("No symbols found in the provided watchlists.");
-                    } else { // full_market
-                        this.getProgress().update(0, 1, "Fetching instrument list...");
-                        const instruments = await ApiService.fetchInstrumentsInfo();
-                        const excluded = document.getElementById('exclude-input').value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
-                        // --- MODIFICATION START ---
-                        const allSymbols = instruments.map(i => i.symbol);
-                        const majorsToTrack = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-
-                        // Symbols for the main market stats (respecting exclusions)
-                        const marketSymbolsToFetch = allSymbols.filter(s => !excluded.includes(s.replace('USDT', '')));
-                        
-                        // Symbols for the major movers card (fetch regardless of exclusion)
-                        const majorSymbolsToFetch = allSymbols.filter(s => majorsToTrack.includes(s));
-                        
-                        // Combine for a single fetch operation
-                        symbolsToFetch = [...new Set([...marketSymbolsToFetch, ...majorSymbolsToFetch])];
-                        // --- MODIFICATION END ---
-                    }
-
-                    const allValidResults = await this.fetchAndProcessTokenData(symbolsToFetch, { hours });
-                    if (allValidResults.length === 0) throw new Error(`No data available for the selected period.`);
-
-                    // --- MODIFICATION START ---
-                    let majorMovers = null;
-                    let resultsToRender = allValidResults;
-                    let ignoredCount = symbolsToFetch.length - allValidResults.length; // Default ignored count
-
-                    if (mode === 'full_market') {
-                        // We need to separate the results for the stats calculation vs. the major movers card
-                        const excluded = document.getElementById('exclude-input').value.toUpperCase().split(',').map(t => t.trim()).filter(Boolean);
-                        // ApiService.fetchInstrumentsInfo() is cached, so this is a fast operation
-                        const marketSymbols = (await ApiService.fetchInstrumentsInfo()).map(i => i.symbol)
-                            .filter(s => !excluded.includes(s.replace('USDT', '')));
-
-                        resultsToRender = allValidResults.filter(r => marketSymbols.includes(r.symbol));
-                        
-                        majorMovers = {
-                            btc: allValidResults.find(r => r.symbol === 'BTCUSDT'),
-                            eth: allValidResults.find(r => r.symbol === 'ETHUSDT'),
-                            sol: allValidResults.find(r => r.symbol === 'SOLUSDT')
-                        };
-                        
-                        // Recalculate ignored count based on *market* symbols only
-                        ignoredCount = marketSymbols.length - resultsToRender.length;
-                    }
-                    // For watchlist, resultsToRender is allValidResults, and ignoredCount is correct
-                    
-                    this.render(resultsToRender, { hours, mode, ignoredCount, majorMovers });
-                    // --- MODIFICATION END ---
-                    this.getUI().showResults();
-
-                } catch (error) {
-                    console.error(`Analysis Error:`, error);
-                    this.getUI().showError(error.message);
-                } finally {
-                    this.setButtonLoading(false, triggerButton);
-                    this.getUI().hideLoader();
-                    this.isRunning = false;
-                }
-            }
-            
-            async fetchAndProcessTokenData(symbols, { hours }) {
-                const progress = this.getProgress();
-                const now = new Date();
-                const startTime = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()) - (hours * 3600 * 1000);
-                
-                const klineInterval = (hours <= 24) ? '1' : (hours <= 720) ? '60' : 'D';
-
-                progress.update(0, 1, 'Fetching current prices...');
-                const tickersMap = new Map((await ApiService.fetchAllTickers()).map(t => [t.symbol, t.lastPrice]));
-                
-                progress.update(0, symbols.length, `Fetching historical prices for ${symbols.length} tokens...`);
-                
-                return await Utils.processWithConcurrency(symbols, 30, async (symbol) => {
-                    const endPriceStr = tickersMap.get(symbol);
-                    if (!endPriceStr) return null;
-                    const startPriceData = await ApiService.fetchKlineData(symbol, startTime, klineInterval);
-                    if (!startPriceData) return null;
-                    
-                    const startTimestampFromServer = parseInt(startPriceData[0], 10);
-                    let tolerance;
-                    switch (klineInterval) {
-                        case '1': tolerance = 1 * 60 * 1000 * 5; break; // 5 minutes for 1m interval
-                        case '60': tolerance = 60 * 60 * 1000 * 2; break; // 2 hours for 1h interval
-                        case 'D': tolerance = 24 * 60 * 60 * 1000 * 2; break; // 2 days for daily interval
-                        default: tolerance = 60 * 60 * 1000; // 1 hour default
-                    }
-                    if (startTimestampFromServer > startTime + tolerance) {
-                        return null;
-                    }
-
-                    const startPrice = parseFloat(startPriceData[4]);
-                    const endPrice = parseFloat(endPriceStr);
-                    if (startPrice === 0) return null;
-                    
-                    const change = ((endPrice - startPrice) / startPrice) * 100;
-                    return { symbol, change: parseFloat(change.toFixed(2)), startPrice: startPrice.toFixed(4), endPrice: endPrice.toFixed(4) };
-                }, (current, total) => progress.update(current, total));
-            }
-
-            calculateStatsForList(listSymbols, allResults, limit = 5) {
-                const filteredResults = allResults.filter(r => listSymbols.includes(r.symbol));
-                if (filteredResults.length === 0) return { count: 0, averageReturn: '0.00', medianReturn: '0.00', top: [], bottom: [] };
-                
-                filteredResults.sort((a, b) => b.change - a.change);
-                const changes = filteredResults.map(r => r.change);
-                const sum = changes.reduce((a, v) => a + v, 0);
-                const average = sum / changes.length;
-                const sortedChanges = [...changes].sort((a, b) => a - b);
-                const midIndex = Math.floor(changes.length / 2);
-                const median = changes.length % 2 === 0 ? (sortedChanges[midIndex - 1] + sortedChanges[midIndex]) / 2 : sortedChanges[midIndex];
-                
-                return {
-                    count: filteredResults.length,
-                    averageReturn: average.toFixed(2),
-                    medianReturn: median.toFixed(2),
-                    top: filteredResults.slice(0, limit),
-                    bottom: filteredResults.slice(-limit).sort((a, b) => a.change - b.change)
+            async handleFileUpload(file) {
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        this.watchlists = JSON.parse(e.target.result);
+                        this.currentFile = file.name;
+                        this.updateActiveState(true);
+                    } catch (err) { alert('Invalid JSON'); }
                 };
+                reader.readAsText(file);
+            }
+
+            clearActiveFile() {
+                this.watchlists = null;
+                this.currentFile = null;
+                this.updateActiveState(false);
             }
             
-            render(results, { hours, mode, ignoredCount, majorMovers }) {
-                const dashboard = document.getElementById(`results-dashboard-${this.id}`);
-                if (mode === 'watchlist') {
-                    const longSymbols = Object.keys(this.watchlists.long_watchlist || {});
-                    const shortSymbols = Object.keys(this.watchlists.short_watchlist || {});
-                    
-                    const longResults = results.filter(r => longSymbols.includes(r.symbol));
-                    const shortResults = results.filter(r => shortSymbols.includes(r.symbol));
-                    const longIgnored = longSymbols.length - longResults.length;
-                    const shortIgnored = shortSymbols.length - shortResults.length;
-
-                    const longStats = this.calculateStatsForList(longSymbols, results, 5);
-                    const shortStats = this.calculateStatsForList(shortSymbols, results, 5);
-
-                    dashboard.innerHTML = `
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                            <div class="space-y-6">${this.createListResultHTML('Long Watchlist', longStats, hours, longIgnored)}</div>
-                            <div class="space-y-6">${this.createListResultHTML('Short Watchlist', shortStats, hours, shortIgnored)}</div>
-                        </div>`;
-                } else { // full_market
-                    const stats = this.calculateStatsForList(results.map(r => r.symbol), results, 10);
-                    dashboard.innerHTML = this.createFullMarketResultHTML(stats, hours, ignoredCount, majorMovers);
-                }
-            }
-            
-            createMajorMoverCardHTML(data, name) {
-                if (!data) {
-                    return `<div>
-                                <p class="text-lg font-bold">${name}</p>
-                                <p class="text-xl font-bold text-gray-500">-</p>
-                            </div>`;
-                }
-                const color = data.change >= 0 ? 'text-green-500' : 'text-red-500';
-                return `<div>
-                            <p class="text-lg font-bold">${name}</p>
-                            <p class="text-xl font-bold ${color}">${data.change >= 0 ? '+' : ''}${data.change}%</p>
-                        </div>`;
+            updateActiveState(hasFile) {
+                const isFav = this.getFavs().some(f => f.name === this.currentFile);
+                UI.updateActiveFileUI(this.currentFile, hasFile, isFav);
+                this.renderFavorites(); 
             }
 
-            createFullMarketResultHTML(stats, hours, ignoredCount, majorMovers) {
-                const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
-                const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
-
-                const btcHTML = this.createMajorMoverCardHTML(majorMovers.btc, 'BTC');
-                const ethHTML = this.createMajorMoverCardHTML(majorMovers.eth, 'ETH');
-                const solHTML = this.createMajorMoverCardHTML(majorMovers.sol, 'SOL');
-
-                const summaryHTML = `
-                    <div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card">
-                        <h3 class="text-xl font-semibold text-white mb-4">Market Summary</h3>
-                        <p class="text-sm text-gray-400 mb-4">For the last ${Utils.formatTimeframe(hours)} (Exclusions Applied)</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center border-b border-gray-700 pb-4 mb-4">
-                            <div><p class="text-sm text-gray-400">Analyzed</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
-                            <div><p class="text-sm text-gray-400">Ignored</p><p class="text-2xl font-bold text-gray-500">${ignoredCount}</p></div>
-                            <div><p class="text-sm text-gray-400">Avg. Return</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
-                            <div><p class="text-sm text-gray-400">Median</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
-                        </div>
-                         <div class="grid grid-cols-3 gap-4 text-center">
-                            ${btcHTML}
-                            ${ethHTML}
-                            ${solHTML}
-                        </div>
-                    </div>`;
-
-                 const topHTML = this.createTableHTML('🚀 Top 10 Gainers', stats.top);
-                 const bottomHTML = this.createTableHTML('📉 Top 10 Losers', stats.bottom);
-
-                 return `<div class="space-y-6">${summaryHTML}<div class="grid grid-cols-1 md:grid-cols-2 gap-6">${topHTML}${bottomHTML}</div></div>`;
-            }
-
-            createListResultHTML(title, stats, hours, ignoredCount) {
-                if (stats.count === 0 && ignoredCount === 0) return `<div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card"><h3 class="text-xl font-semibold text-white mb-4">${title}</h3><p class="text-gray-400">No tokens found in this list.</p></div>`;
-
-                const avgColor = stats.averageReturn >= 0 ? 'text-green-500' : 'text-red-500';
-                const medColor = stats.medianReturn >= 0 ? 'text-green-500' : 'text-red-500';
-
-                const summaryHTML = `
-                    <div class="bg-gray-800 p-6 rounded-lg shadow-lg result-card">
-                        <h3 class="text-xl font-semibold text-white mb-4">${title} Summary</h3>
-                        <p class="text-sm text-gray-400 mb-4">For the last ${Utils.formatTimeframe(hours)}</p>
-                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 text-center">
-                            <div><p class="text-sm text-gray-400">Analyzed</p><p class="text-2xl font-bold text-white">${stats.count}</p></div>
-                            <div><p class="text-sm text-gray-400">Ignored</p><p class="text-2xl font-bold text-gray-500">${ignoredCount}</p></div>
-                            <div><p class="text-sm text-gray-400">Avg.</p><p class="text-2xl font-bold ${avgColor}">${stats.averageReturn}%</p></div>
-                            <div><p class="text-sm text-gray-400">Median</p><p class="text-2xl font-bold ${medColor}">${stats.medianReturn}%</p></div>
-                        </div>
-                    </div>`;
-
-                return `${summaryHTML}${this.createTableHTML('🚀 Top 5 Gainers', stats.top)}${this.createTableHTML('📉 Top 5 Losers', stats.bottom)}`;
-            }
-
-            createTableHTML(tableTitle, data) {
-                 if (data.length === 0) return '';
-                 const tableRows = data.map(item => `
-                    <tr class="border-b border-gray-700 hover:bg-gray-700/50">
-                        <th class="px-4 py-3 font-medium text-white"><a href="https://www.bybit.com/trade/usdt/${item.symbol}" target="_blank" class="hover:underline">${item.symbol}</a></th>
-                        <td class="px-4 py-3 text-right font-bold ${item.change >= 0 ? 'text-green-500' : 'text-red-500'}">${item.change >= 0 ? '+' : ''}${item.change}%</td>
-                    </tr>`).join('');
-
-                 return `<div class="bg-gray-800 rounded-lg shadow-lg overflow-hidden result-card">
-                            <table class="w-full text-sm text-left text-gray-400">
-                                <caption class="p-4 text-lg font-semibold text-left text-white bg-gray-700/50">${tableTitle}</caption>
-                                <thead class="text-xs text-gray-300 uppercase bg-gray-700"><tr><th class="px-4 py-2">Symbol</th><th class="px-4 py-2 text-right">Change</th></tr></thead>
-                                <tbody>${tableRows}</tbody>
-                            </table>
-                        </div>`;
-            }
-
-            getSelectedTimeframe() {
-                const selectedBtn = this.controlsContainer.querySelector(`.timeframe-btn.selected`);
-                if (selectedBtn) {
-                    return parseInt(selectedBtn.dataset.hours, 10);
-                }
-                
-                const value = parseFloat(document.getElementById(`custom-time-input`).value);
-                if (isNaN(value) || value <= 0) {
-                    return NaN;
-                }
-                
-                const unit = document.getElementById(`custom-time-unit`).value;
-                return unit === 'minutes' ? value / 60 : (unit === 'days' ? value * 24 : value);
-            }
-
-            // --- Favorites Logic ---
-            getFavorites() {
+            async runAnalysis(mode) {
                 try {
-                    return JSON.parse(localStorage.getItem(Config.FAVORITES_STORAGE_KEY)) || [];
-                } catch (e) {
-                    return [];
-                }
+                    const { hours, is24h } = this.getTimeframeConfig();
+                    
+                    let timeLabel;
+                    if (hours < 1) {
+                        timeLabel = `${Math.round(hours * 60)} Minutes`;
+                    } else if (hours >= 24 && hours % 24 === 0) {
+                        const days = hours / 24;
+                        timeLabel = `${days} ${days === 1 ? 'Day' : 'Days'}`;
+                    } else {
+                        timeLabel = `${parseFloat(hours.toFixed(2))} Hours`;
+                    }
+
+                    UI.clearResults();
+                    UI.setLoading(true, `Preparing ${mode} analysis (${timeLabel})...`);
+
+                    let symbolsToAnalyze = [];
+                    let allInstruments = [];
+
+                    if (mode === 'market') {
+                        allInstruments = await Api.fetchInstruments();
+                        const excludeInput = document.getElementById('exclude-input').value
+                            .toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+                        
+                        symbolsToAnalyze = allInstruments.filter(s => !excludeInput.includes(s.replace('USDT', '')));
+                        
+                        ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].forEach(m => {
+                            if (!symbolsToAnalyze.includes(m)) symbolsToAnalyze.push(m);
+                        });
+                    } else {
+                        if (!this.watchlists) throw new Error("No watchlist loaded");
+                        const combined = new Set();
+                        if (this.watchlists.long_watchlist) Object.keys(this.watchlists.long_watchlist).forEach(k => combined.add(k));
+                        if (this.watchlists.short_watchlist) Object.keys(this.watchlists.short_watchlist).forEach(k => combined.add(k));
+                        symbolsToAnalyze = Array.from(combined);
+                    }
+
+                    if (symbolsToAnalyze.length === 0) throw new Error("No symbols found");
+
+                    UI.setLoading(true, `Fetching data for ${symbolsToAnalyze.length} symbols...`);
+                    const allTickers = await Api.fetchAllTickers();
+                    const tickerMap = new Map(allTickers.map(t => [t.symbol, t]));
+
+                    let results = [];
+                    if (is24h) {
+                        results = symbolsToAnalyze.map(sym => {
+                            const t = tickerMap.get(sym);
+                            return t ? { symbol: sym, change: parseFloat(parseFloat(t.price24hPcnt * 100).toFixed(2)) } : null;
+                        }).filter(Boolean);
+                    } else {
+                        const now = new Date();
+                        
+                        let interval;
+                        let startTimeRaw = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()) - (hours * 3600 * 1000);
+                        let startTime = startTimeRaw; 
+
+                        if (hours <= 24) {
+                            interval = '5';
+                        } else if (hours <= 720) {
+                            interval = '60'; 
+                        } else {
+                            interval = 'D';
+                        }
+
+                        results = await Utils.processWithConcurrency(symbolsToAnalyze, 30, async (sym) => {
+                            const ticker = tickerMap.get(sym);
+                            if (!ticker) return null;
+                            
+                            const kline = await Api.fetchKline(sym, interval, startTime);
+                            if (!kline) return null;
+
+                            const candleTime = parseInt(kline[0]);
+                            
+                            let tolerance;
+                             switch (interval) {
+                                case '5': tolerance = 5 * 60 * 1000 * 4; break;
+                                case '60': tolerance = 2 * 60 * 60 * 1000; break;
+                                case 'D': tolerance = 3 * 24 * 60 * 60 * 1000; break;
+                                default: tolerance = 60 * 60 * 1000;
+                            }
+                            
+                            if (candleTime > startTime + tolerance) {
+                                return null;
+                            }
+
+                            const historicPrice = parseFloat(kline[4]); // Close price
+                            const currentPrice = parseFloat(ticker.lastPrice);
+                            
+                            if (historicPrice === 0) return null;
+
+                            return { 
+                                symbol: sym, 
+                                change: parseFloat((((currentPrice - historicPrice) / historicPrice) * 100).toFixed(2)) 
+                            };
+                        }, (c, t) => UI.updateProgress(c, t));
+                    }
+
+                    UI.setLoading(false);
+                    UI.showResults();
+
+                    if (mode === 'market') {
+                        const majorSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT']; 
+                        const majorMovers = majorSymbols.map(s => results.find(r => r.symbol === s)).filter(Boolean); 
+                        
+                        const excludeInput = document.getElementById('exclude-input').value.toUpperCase().split(',').map(s => s.trim());
+                        const statsResults = results.filter(r => !excludeInput.includes(r.symbol.replace('USDT', '')));
+                        
+                        const allAnalyzedSymbols = results.map(r => r.symbol);
+                        const ignoredSymbols = symbolsToAnalyze.filter(s => !allAnalyzedSymbols.includes(s));
+
+                        const card = UI.renderCard('Full Market Analysis', `Timeframe: ${timeLabel}`, statsResults, ignoredSymbols, majorMovers);
+                        UI.els.resultsArea.appendChild(card);
+                    } else {
+                        const longs = Object.keys(this.watchlists.long_watchlist || {});
+                        const shorts = Object.keys(this.watchlists.short_watchlist || {});
+                        
+                        const resLong = results.filter(r => longs.includes(r.symbol));
+                        const resShort = results.filter(r => shorts.includes(r.symbol));
+                        
+                        const longAnalyzed = resLong.map(r => r.symbol);
+                        const shortAnalyzed = resShort.map(r => r.symbol);
+                        
+                        const longIgnored = longs.filter(s => !longAnalyzed.includes(s));
+                        const shortIgnored = shorts.filter(s => !shortAnalyzed.includes(s));
+                        
+                        const grid = document.createElement('div');
+                        grid.className = 'grid grid-cols-1 lg:grid-cols-2 gap-8';
+                        grid.appendChild(UI.renderCard('Long Watchlist', `${resLong.length} Symbols`, resLong, longIgnored));
+                        grid.appendChild(UI.renderCard('Short Watchlist', `${resShort.length} Symbols`, resShort, shortIgnored));
+                        UI.els.resultsArea.appendChild(grid);
+                    }
+
+                } catch (e) { UI.showError(e.message); }
             }
 
             saveFavorite() {
-                if (!this.currentFileName || !this.watchlists) return;
-                const favorites = this.getFavorites();
-                const existingIndex = favorites.findIndex(fav => fav.name === this.currentFileName);
-                const newFav = { name: this.currentFileName, data: this.watchlists };
+                if (!this.currentFile || !this.watchlists) return;
+                const favs = this.getFavs();
+                // Remove existing if overwriting same name
+                const clean = favs.filter(f => f.name !== this.currentFile);
+                clean.push({ name: this.currentFile, data: this.watchlists });
+                localStorage.setItem(Config.STORAGE_KEYS.FAVORITES, JSON.stringify(clean));
                 
-                if (existingIndex > -1) {
-                    favorites[existingIndex] = newFav; // Update existing
-                } else {
-                    favorites.push(newFav);
-                }
-                localStorage.setItem(Config.FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
-                this.renderFavorites();
+                // Force state update to disable button immediately
+                this.updateActiveState(true);
             }
 
-            deleteFavorite(name) {
-                let favorites = this.getFavorites();
-                favorites = favorites.filter(fav => fav.name !== name);
-                localStorage.setItem(Config.FAVORITES_STORAGE_KEY, JSON.stringify(favorites));
-                this.renderFavorites();
-            }
-
-            loadFavorite(name) {
-                const favorites = this.getFavorites();
-                const favorite = favorites.find(fav => fav.name === name);
-                if (favorite) {
-                    this.watchlists = favorite.data;
-                    this.currentFileName = favorite.name;
-                    
-                    document.getElementById('file-info-name').textContent = this.currentFileName;
-                    
-                    const fileInfoContainer = document.getElementById('file-info-container');
-                    fileInfoContainer.classList.remove('hidden');
-                    fileInfoContainer.classList.add('flex');
-
-                    document.getElementById('analyze-watchlist-btn').disabled = false;
-                    document.querySelector('label[for="watchlist-upload"]').classList.add('hidden');
-                }
-            }
+            getFavs() { try { return JSON.parse(localStorage.getItem(Config.STORAGE_KEYS.FAVORITES) || '[]'); } catch { return []; } }
 
             renderFavorites() {
-                const favorites = this.getFavorites();
-                const container = document.getElementById('favorites-list');
-                const favoritesContainer = document.getElementById('favorites-container');
-                container.innerHTML = '';
-
-                if (favorites.length === 0) {
-                    favoritesContainer.classList.add('hidden');
+                const list = UI.els.favList;
+                list.innerHTML = '';
+                const favs = this.getFavs();
+                
+                if (favs.length === 0) {
+                    list.innerHTML = '<div class="text-center py-4 bg-gray-800/30 rounded-lg border border-gray-800 border-dashed"><p class="text-gray-600 text-xs">No saved lists yet</p></div>';
                     return;
                 }
-                favoritesContainer.classList.remove('hidden');
 
-                favorites.forEach(fav => {
-                    const div = document.createElement('div');
-                    div.className = 'favorite-item flex items-center justify-between bg-gray-900/50 p-2 rounded-md';
-                    div.innerHTML = `
-                        <button class="text-left text-blue-400 hover:underline truncate flex-grow" data-name="${fav.name}">${fav.name}</button>
-                        <button class="delete-favorite-btn text-gray-500 hover:text-red-500 transition-all opacity-0 ml-2" data-name="${fav.name}">
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
-                            </svg>
+                // New Vertical List Layout
+                favs.forEach(fav => {
+                    const isActive = fav.name === this.currentFile;
+                    
+                    const el = document.createElement('div');
+                    let classes = 'group flex items-center justify-between p-3 rounded-lg border cursor-pointer transition-all duration-200 ';
+                    
+                    if (isActive) {
+                        classes += 'bg-blue-900/10 border-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.1)]';
+                    } else {
+                        classes += 'bg-gray-800 border-gray-700 hover:border-gray-500 hover:bg-gray-750';
+                    }
+                    
+                    el.className = classes;
+                    
+                    // Icon color logic
+                    const iconColor = isActive ? 'text-blue-400' : 'text-gray-500 group-hover:text-gray-300';
+                    
+                    el.innerHTML = `
+                        <div class="flex items-center gap-3 min-w-0">
+                            <div class="${iconColor} transition-colors">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+                            </div>
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium truncate ${isActive ? 'text-blue-100' : 'text-gray-300 group-hover:text-white'}">${fav.name}</p>
+                            </div>
+                        </div>
+                        <button class="del-btn p-1.5 text-gray-600 hover:text-red-400 hover:bg-gray-700 rounded-md transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100" title="Delete">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                         </button>
                     `;
-                    container.appendChild(div);
+                    
+                    el.querySelector('.del-btn').addEventListener('click', (e) => { 
+                        e.stopPropagation(); 
+                        this.removeFav(fav.name); 
+                    });
+                    
+                    el.addEventListener('click', () => {
+                        this.watchlists = fav.data;
+                        this.currentFile = fav.name;
+                        this.updateActiveState(true);
+                    });
+                    
+                    list.appendChild(el);
                 });
             }
 
-
-            bindEvents() {
-                const analyzeWatchlistBtn = document.getElementById('analyze-watchlist-btn');
-                const analyzeMarketBtn = document.getElementById('analyze-market-btn');
-                const fileInput = document.getElementById('watchlist-upload');
-                const customTimeInput = document.getElementById('custom-time-input');
-                const customTimeUnit = document.getElementById('custom-time-unit');
-                const fileInfoContainer = document.getElementById('file-info-container');
-                const fileInfoName = document.getElementById('file-info-name');
-                const saveFavoriteBtn = document.getElementById('save-favorite-btn');
-                const favoritesList = document.getElementById('favorites-list');
-                const clearFileBtn = document.getElementById('clear-file-btn');
-
-                const setActiveCustomTime = () => {
-                    this.controlsContainer.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('selected'));
-                    customTimeInput.classList.add('custom-time-active');
-                    customTimeUnit.classList.add('custom-time-active');
-                };
-
-                const clearActiveCustomTime = () => {
-                    customTimeInput.classList.remove('custom-time-active');
-                    customTimeUnit.classList.remove('custom-time-active');
-                };
-                
-                this.controlsContainer.addEventListener('click', (e) => {
-                    const target = e.target.closest('button');
-                    if (target && target.matches('.timeframe-btn')) {
-                        this.controlsContainer.querySelectorAll('.timeframe-btn').forEach(b => b.classList.remove('selected'));
-                        target.classList.add('selected');
-                        customTimeInput.value = '';
-                        clearActiveCustomTime();
-                    }
-                });
-                
-                customTimeInput.addEventListener('focus', setActiveCustomTime);
-                customTimeInput.addEventListener('input', setActiveCustomTime);
-                customTimeUnit.addEventListener('change', setActiveCustomTime);
-
-                const resetFileSelection = () => {
-                    this.watchlists = null;
-                    this.currentFileName = null;
-                    fileInput.value = ''; // Important to allow re-selecting the same file
-
-                    fileInfoContainer.classList.add('hidden');
-                    fileInfoContainer.classList.remove('flex');
-
-                    document.querySelector('label[for="watchlist-upload"]').classList.remove('hidden');
-                    
-                    analyzeWatchlistBtn.disabled = true;
-                };
-
-                clearFileBtn.addEventListener('click', resetFileSelection);
-
-                fileInput.addEventListener('change', (event) => {
-                    const file = event.target.files[0];
-                    if (!file) return;
-
-                    const reader = new FileReader();
-                    reader.onload = (e) => {
-                        try {
-                            this.watchlists = JSON.parse(e.target.result);
-                            this.currentFileName = file.name;
-                            this.getUI().hideError();
-                            analyzeWatchlistBtn.disabled = false;
-                            
-                            document.querySelector('label[for="watchlist-upload"]').classList.add('hidden');
-                            fileInfoName.textContent = file.name;
-                            fileInfoContainer.classList.remove('hidden');
-                            fileInfoContainer.classList.add('flex');
-                            
-                        } catch (err) {
-                            this.watchlists = null;
-                            this.currentFileName = null;
-                            this.getUI().showError('Failed to parse JSON file.');
-                            analyzeWatchlistBtn.disabled = true;
-                            fileInfoContainer.classList.add('hidden');
-                        }
-                    };
-                    reader.readAsText(file);
-                });
-                
-                saveFavoriteBtn.addEventListener('click', () => this.saveFavorite());
-
-                favoritesList.addEventListener('click', (e) => {
-                    const loadBtn = e.target.closest('button[data-name]');
-                    if (!loadBtn) return;
-
-                    if (loadBtn.classList.contains('delete-favorite-btn')) {
-                        this.deleteFavorite(loadBtn.dataset.name);
-                    } else {
-                        this.loadFavorite(loadBtn.dataset.name);
-                    }
-                });
-
-                analyzeWatchlistBtn.addEventListener('click', () => this.runAnalysis('watchlist', analyzeWatchlistBtn));
-                analyzeMarketBtn.addEventListener('click', () => this.runAnalysis('full_market', analyzeMarketBtn));
-                
-                this.renderFavorites(); // Initial render
+            removeFav(name) {
+                const favs = this.getFavs().filter(f => f.name !== name);
+                localStorage.setItem(Config.STORAGE_KEYS.FAVORITES, JSON.stringify(favs));
+                this.updateActiveState(!!this.watchlists);
             }
         }
-        
-        // --- APP INITIALIZATION ---
-        const App = {
-            init() {
-                document.getElementById('controls-price').innerHTML = Renderer.createCommonControlsHTML();
-                document.getElementById('content-area-price').innerHTML = Renderer.createResultsContainerHTML('price');
-                const analyzer = new PriceAnalyzer('price');
-                analyzer.bindEvents();
-            }
-        };
 
-        App.init();
-
+        new Analyzer();
     </script>
 </body>
 </html>
-
