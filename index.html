@@ -4,6 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bybit Futures Analyzer</title>
+    
+    <!-- FAVICON ADDED HERE -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -63,21 +67,16 @@
                 
                 <!-- Timeframe Selection -->
                 <div class="flex flex-col md:flex-row justify-between items-center gap-6 border-b border-gray-700 pb-6 mb-6">
-                    <!-- Predefined Buttons Area -->
-                    <div class="flex flex-col items-center md:items-start gap-2">
+                    <div class="flex flex-col items-center md:items-start gap-2 transition-all duration-300" id="buttons-container">
                         <h2 class="text-lg font-semibold text-white">Timeframe</h2>
-                        <!-- Container for buttons that will be dimmed -->
-                        <div id="buttons-container" class="transition-all duration-300">
-                            <div class="flex bg-gray-900 p-1 rounded-lg" id="timeframe-buttons">
-                                <button data-val="1" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">1h</button>
-                                <button data-val="4" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">4h</button>
-                                <button data-val="24" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors btn-active">24h</button>
-                                <button data-val="168" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">7d</button>
-                            </div>
+                        <div class="flex bg-gray-900 p-1 rounded-lg" id="timeframe-buttons">
+                            <button data-val="1" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">1h</button>
+                            <button data-val="4" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">4h</button>
+                            <button data-val="24" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors btn-active">24h</button>
+                            <button data-val="168" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">7d</button>
                         </div>
                     </div>
 
-                    <!-- Custom Input Area -->
                     <div id="custom-input-container" class="flex items-center gap-3 relative group transition-all duration-300 section-dimmed">
                         <div class="flex flex-col items-end mr-2">
                             <span id="custom-label" class="text-gray-500 text-sm font-bold tracking-wide transition-colors duration-300">CUSTOM</span>
