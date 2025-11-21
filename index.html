@@ -224,32 +224,35 @@
         </div>
     </div>
 
-    <!-- CHART MODAL -->
-    <div id="chart-modal" class="fixed inset-0 bg-black/95 backdrop-blur-sm z-[60] hidden flex-col transition-opacity duration-300 opacity-0" aria-hidden="true">
-        <!-- Chart Header -->
-        <div class="flex justify-between items-center px-4 py-3 border-b border-gray-800 bg-gray-900/90 w-full z-10">
-             <div class="flex items-center gap-4">
-                 <div class="flex items-baseline gap-2">
-                     <h3 id="chart-symbol" class="text-xl font-bold text-white tracking-wider">BTCUSDT</h3>
-                     <span id="chart-timeframe-badge" class="text-xs font-mono text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded bg-blue-500/10">24h</span>
+    <!-- CHART MODAL (UPDATED TO POPUP) -->
+    <div id="chart-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-[60] hidden items-center justify-center transition-opacity duration-300 opacity-0" aria-hidden="true">
+        <!-- Popup Container -->
+        <div id="chart-popup-content" class="bg-gray-900 rounded-2xl border border-gray-700 w-full max-w-5xl mx-4 shadow-2xl overflow-hidden flex flex-col h-[600px] transform scale-95 transition-transform duration-300">
+            <!-- Chart Header -->
+            <div class="flex justify-between items-center px-4 py-3 border-b border-gray-800 bg-gray-900/90 z-10">
+                 <div class="flex items-center gap-4">
+                     <div class="flex items-baseline gap-2">
+                         <h3 id="chart-symbol" class="text-xl font-bold text-white tracking-wider">BTCUSDT</h3>
+                         <span id="chart-timeframe-badge" class="text-xs font-mono text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded bg-blue-500/10">24h</span>
+                     </div>
+                     <div id="chart-loading" class="hidden items-center gap-2">
+                         <div class="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                         <span class="text-xs text-gray-500">Loading candles...</span>
+                     </div>
                  </div>
-                 <div id="chart-loading" class="hidden items-center gap-2">
-                     <div class="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
-                     <span class="text-xs text-gray-500">Loading candles...</span>
-                 </div>
-             </div>
-             <button id="btn-close-chart" class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg p-2 transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-             </button>
-        </div>
-        
-        <!-- Chart Container -->
-        <div class="flex-grow w-full h-full relative bg-gray-900 overflow-hidden">
-            <div id="chart-container" class="w-full h-full"></div>
-            <!-- Tooltip Element -->
-            <div id="chart-tooltip" class="floating-tooltip rounded-md shadow-lg pointer-events-none"></div>
+                 <button id="btn-close-chart" class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg p-2 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                 </button>
+            </div>
+            
+            <!-- Chart Container -->
+            <div class="flex-grow w-full relative bg-gray-900 overflow-hidden">
+                <div id="chart-container" class="w-full h-full"></div>
+                <!-- Tooltip Element -->
+                <div id="chart-tooltip" class="floating-tooltip rounded-md shadow-lg pointer-events-none"></div>
+            </div>
         </div>
     </div>
 
@@ -571,6 +574,7 @@
                 modalFooter: document.getElementById('modal-footer'),
                 // Chart Modal Els
                 chartModal: document.getElementById('chart-modal'),
+                chartPopupContent: document.getElementById('chart-popup-content'), // NEW
                 chartSymbol: document.getElementById('chart-symbol'),
                 chartBadge: document.getElementById('chart-timeframe-badge'),
                 chartContainer: document.getElementById('chart-container'),
@@ -669,6 +673,9 @@
                     
                     requestAnimationFrame(() => {
                         this.els.chartModal.classList.remove('opacity-0');
+                        // Animation for popup content
+                        this.els.chartPopupContent.classList.remove('scale-95');
+                        this.els.chartPopupContent.classList.add('scale-100');
                     });
                     
                     this.els.chartSymbol.textContent = symbol;
@@ -714,6 +721,10 @@
 
             closeChart() {
                 this.els.chartModal.classList.add('opacity-0');
+                // Reverse animation
+                this.els.chartPopupContent.classList.remove('scale-100');
+                this.els.chartPopupContent.classList.add('scale-95');
+                
                 setTimeout(() => {
                     this.els.chartModal.classList.add('hidden');
                     this.els.chartModal.classList.remove('flex');
@@ -974,6 +985,13 @@
 
                 // Chart Modal Listeners
                 UI.els.btnCloseChart.addEventListener('click', () => UI.closeChart());
+                // Add listener to close when clicking outside popup content
+                UI.els.chartModal.addEventListener('click', (e) => {
+                    // Check if clicked element is the backdrop (chart-modal itself)
+                    if (e.target === UI.els.chartModal) {
+                        UI.closeChart();
+                    }
+                });
             }
 
             handleCustomInput() {
