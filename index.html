@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bybit Futures Analyzer</title>
     
-    <!-- FIXED FAVICON (Standard emoji) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
+    <!-- FIXED FAVICON (Standard emoji 📈) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
 
     <!-- LIBRARIES -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -90,9 +90,10 @@
                     <div class="flex flex-col items-center md:items-start gap-2 transition-all duration-300" id="buttons-container">
                         <h2 class="text-lg font-semibold text-white">Timeframe</h2>
                         <div class="flex bg-gray-900 p-1 rounded-lg" id="timeframe-buttons">
+                            <!-- REMOVED btn-active from HTML to prevent visual jump -->
                             <button data-val="1" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">1h</button>
                             <button data-val="4" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">4h</button>
-                            <button data-val="24" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors btn-active">24h</button>
+                            <button data-val="24" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">24h</button>
                             <button data-val="168" class="px-4 py-2 rounded-md text-sm font-medium text-gray-400 hover:text-white transition-colors">7d</button>
                         </div>
                     </div>
@@ -122,7 +123,8 @@
                         <h3 class="text-xl font-bold text-white">Full Market</h3>
                         <div>
                             <label class="text-xs text-gray-400 uppercase font-bold tracking-wider mb-1 block">Exclude Symbols</label>
-                            <input type="text" id="exclude-input" value="BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT" class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="BTC, ETH...">
+                            <!-- Input empty by default to avoid jump -->
+                            <input type="text" id="exclude-input" class="w-full bg-gray-900 border border-gray-600 rounded-lg px-4 py-3 text-sm text-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" placeholder="BTC, ETH...">
                         </div>
                         <button id="btn-analyze-market" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 rounded-xl transition-all transform active:scale-95 flex justify-center items-center gap-2">
                             <span>Analyze Market</span>
@@ -364,7 +366,14 @@
             },
             STORAGE_KEYS: {
                 FAVORITES: 'bybit_analyzer_favs_v2',
-                CACHE_INSTRUMENTS: 'bybit_instruments_cache_v3'
+                CACHE_INSTRUMENTS: 'bybit_instruments_cache_v3',
+                EXCLUDED: 'bybit_analyzer_excluded_v1', // Stores text string
+                TIMEFRAME: 'bybit_analyzer_tf_v1' // Stores object: {type: 'preset'|'custom', val: number, unit: string}
+            },
+            DEFAULTS: {
+                EXCLUDED: "BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT",
+                TIMEFRAME_VAL: 24,
+                TIMEFRAME_TYPE: 'preset'
             }
         };
 
@@ -558,6 +567,7 @@
                 fileInput: document.getElementById('file-upload'),
                 analyzeWatchlistBtn: document.getElementById('btn-analyze-watchlist'),
                 btnSaveFav: document.getElementById('btn-save-fav'),
+                excludeInput: document.getElementById('exclude-input'), // Added Access
                 // Active File Els
                 activePanel: document.getElementById('active-watchlist-panel'),
                 activeFilename: document.getElementById('active-filename'),
@@ -574,7 +584,7 @@
                 modalFooter: document.getElementById('modal-footer'),
                 // Chart Modal Els
                 chartModal: document.getElementById('chart-modal'),
-                chartPopupContent: document.getElementById('chart-popup-content'), // NEW
+                chartPopupContent: document.getElementById('chart-popup-content'), 
                 chartSymbol: document.getElementById('chart-symbol'),
                 chartBadge: document.getElementById('chart-timeframe-badge'),
                 chartContainer: document.getElementById('chart-container'),
@@ -899,7 +909,7 @@
                 if (data.length <= 10) {
                     tablesContainer.classList.remove('grid-cols-1', 'md:grid-cols-2'); 
                     const sortedData = [...data].sort((a,b) => b.change - a.change);
-                    tablesContainer.appendChild(this.createTable('📊 Performance', sortedData, currentHours));
+                    tablesContainer.appendChild(this.createTable('📈 Performance', sortedData, currentHours));
                 } else {
                     const gainersData = [...data].sort((a,b) => b.change - a.change).slice(0, 10);
                     tablesContainer.appendChild(this.createTable('🚀 Top 10 Gainers', gainersData, currentHours));
@@ -948,7 +958,33 @@
                 this.activeFavName = null; 
                 this.initListeners();
                 this.renderFavorites(); 
-                this.selectTimeframe(24);
+                this.restoreSettings(); // Restore Exclude & Timeframe
+            }
+
+            // Restore saved settings from localStorage
+            restoreSettings() {
+                // 1. Restore Excluded Symbols
+                const savedExcluded = localStorage.getItem(Config.STORAGE_KEYS.EXCLUDED);
+                UI.els.excludeInput.value = savedExcluded !== null ? savedExcluded : Config.DEFAULTS.EXCLUDED;
+
+                // 2. Restore Timeframe
+                try {
+                    const savedTF = JSON.parse(localStorage.getItem(Config.STORAGE_KEYS.TIMEFRAME));
+                    if (savedTF && savedTF.type) {
+                        if (savedTF.type === 'preset') {
+                            this.selectTimeframe(savedTF.val);
+                        } else if (savedTF.type === 'custom') {
+                            UI.els.customVal.value = savedTF.val;
+                            UI.els.customUnit.value = savedTF.unit;
+                            this.handleCustomInput(); // Trigger state update
+                        }
+                    } else {
+                         // Default if no storage
+                        this.selectTimeframe(Config.DEFAULTS.TIMEFRAME_VAL);
+                    }
+                } catch (e) {
+                    this.selectTimeframe(Config.DEFAULTS.TIMEFRAME_VAL);
+                }
             }
 
             initListeners() {
@@ -963,6 +999,11 @@
                 [UI.els.customVal, UI.els.customUnit].forEach(el => {
                     el.addEventListener('input', () => this.handleCustomInput());
                     el.addEventListener('focus', () => this.handleCustomInput());
+                });
+
+                // Listen for changes in Exclude Input
+                UI.els.excludeInput.addEventListener('input', (e) => {
+                    localStorage.setItem(Config.STORAGE_KEYS.EXCLUDED, e.target.value);
                 });
 
                 document.getElementById('btn-analyze-market').addEventListener('click', () => this.runAnalysis('market'));
@@ -998,6 +1039,17 @@
                 UI.els.timeButtons.forEach(b => b.classList.remove('btn-active')); 
                 this.selectedHours = null; 
                 this.updateCustomInputState(true);
+                
+                // Save custom timeframe state
+                const val = UI.els.customVal.value;
+                const unit = UI.els.customUnit.value;
+                if (val) {
+                     localStorage.setItem(Config.STORAGE_KEYS.TIMEFRAME, JSON.stringify({
+                        type: 'custom',
+                        val: val,
+                        unit: unit
+                    }));
+                }
             }
 
             updateCustomInputState(isActive) {
@@ -1036,6 +1088,12 @@
                 });
                 this.selectedHours = parseFloat(val);
                 this.updateCustomInputState(false); 
+                
+                // Save preset timeframe state
+                localStorage.setItem(Config.STORAGE_KEYS.TIMEFRAME, JSON.stringify({
+                    type: 'preset',
+                    val: val
+                }));
             }
 
             getTimeframeConfig() {
