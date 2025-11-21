@@ -8,10 +8,14 @@
     <!-- FIXED FAVICON (Standard emoji) -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📊</text></svg>">
 
+    <!-- LIBRARIES -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
     <style>
         body { font-family: 'Inter', sans-serif; }
         
@@ -28,11 +32,6 @@
         .fade-in { animation: fadeIn 0.3s ease-out forwards; opacity: 0; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* Modal Animation */
-        .modal-enter { opacity: 0; pointer-events: none; transform: scale(0.95); }
-        .modal-enter-active { opacity: 1; pointer-events: auto; transform: scale(1); transition: all 0.2s ease-out; }
-        .modal-exit { opacity: 0; pointer-events: none; transform: scale(0.95); transition: all 0.2s ease-in; }
-
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: #111827; }
@@ -48,6 +47,27 @@
         select option { background-color: #1f2937; color: white; padding: 8px; }
         input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         input[type=number] { -moz-appearance: textfield; }
+
+        /* Chart Tooltip */
+        .floating-tooltip {
+            width: 96px;
+            height: 80px;
+            position: absolute;
+            display: none;
+            padding: 8px;
+            box-sizing: border-box;
+            font-size: 12px;
+            text-align: left;
+            z-index: 1000;
+            top: 12px;
+            left: 12px;
+            pointer-events: none;
+            border-radius: 4px 4px 0px 0px;
+            background-color: rgba(17, 24, 39, 0.9);
+            color: #d1d5db;
+            border: 1px solid #374151;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 <body class="bg-gray-900 text-gray-100 min-h-screen flex flex-col relative">
@@ -195,13 +215,41 @@
                 </button>
             </div>
             
-            <!-- Normal Content -->
             <div id="modal-body-list" class="overflow-y-auto pr-2 custom-scrollbar flex-grow">
                 <div id="modal-list" class="flex flex-wrap gap-2 content-start"></div>
             </div>
             <div id="modal-footer" class="mt-4 pt-4 border-t border-gray-700 text-right">
                 <span id="modal-count-display" class="text-sm text-gray-500 font-mono"></span>
             </div>
+        </div>
+    </div>
+
+    <!-- CHART MODAL -->
+    <div id="chart-modal" class="fixed inset-0 bg-black/95 backdrop-blur-sm z-[60] hidden flex-col transition-opacity duration-300 opacity-0" aria-hidden="true">
+        <!-- Chart Header -->
+        <div class="flex justify-between items-center px-4 py-3 border-b border-gray-800 bg-gray-900/90 w-full z-10">
+             <div class="flex items-center gap-4">
+                 <div class="flex items-baseline gap-2">
+                     <h3 id="chart-symbol" class="text-xl font-bold text-white tracking-wider">BTCUSDT</h3>
+                     <span id="chart-timeframe-badge" class="text-xs font-mono text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded bg-blue-500/10">24h</span>
+                 </div>
+                 <div id="chart-loading" class="hidden items-center gap-2">
+                     <div class="w-3 h-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                     <span class="text-xs text-gray-500">Loading candles...</span>
+                 </div>
+             </div>
+             <button id="btn-close-chart" class="text-gray-400 hover:text-white bg-gray-800 hover:bg-gray-700 rounded-lg p-2 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+             </button>
+        </div>
+        
+        <!-- Chart Container -->
+        <div class="flex-grow w-full h-full relative bg-gray-900 overflow-hidden">
+            <div id="chart-container" class="w-full h-full"></div>
+            <!-- Tooltip Element -->
+            <div id="chart-tooltip" class="floating-tooltip rounded-md shadow-lg pointer-events-none"></div>
         </div>
     </div>
 
@@ -231,29 +279,24 @@
 
             <!-- Stats Grid -->
             <div class="grid grid-cols-2 md:grid-cols-4 gap-6 mb-6">
-                <!-- Analyzed Card -->
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center shadow-md">
                     <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold">Analyzed</span>
                     <span class="text-xl font-bold text-white mt-1 card-count">0</span>
                 </div>
                 
-                <!-- Ignored Card (Dynamic Styles) -->
                 <button class="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center transition-all card-ignored-btn group relative shadow-md">
                     <span class="text-xs text-gray-500 uppercase tracking-wider font-semibold group-hover:text-gray-400 transition-colors">Ignored</span>
                     <span class="text-xl font-bold text-gray-300 mt-1 card-ignored group-hover:text-white transition-colors">0</span>
-                    <!-- Icon: Changed default opacity to handle in JS -->
                     <div class="absolute top-2 right-2 transition-opacity text-gray-500 ignored-icon opacity-0">
                          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
                     </div>
                 </button>
 
-                <!-- Gainers Card -->
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center shadow-md">
                     <span class="text-xs text-green-500 uppercase tracking-wider font-semibold">Gainers</span>
                     <span class="text-xl font-bold text-green-500 mt-1 card-gainers">0</span>
                 </div>
 
-                <!-- Losers Card -->
                 <div class="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col items-center justify-center shadow-md">
                     <span class="text-xs text-red-500 uppercase tracking-wider font-semibold">Losers</span>
                     <span class="text-xl font-bold text-red-500 mt-1 card-losers">0</span>
@@ -288,10 +331,18 @@
     <template id="tpl-row">
         <tr class="hover:bg-gray-800/50 transition-colors group">
             <td class="px-2 py-2 font-medium text-gray-300 group-hover:text-white">
-                <a href="#" target="_blank" class="row-link flex items-center gap-2">
-                    <span class="row-symbol">BTCUSDT</span>
-                    <svg class="w-3 h-3 opacity-0 group-hover:opacity-50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
-                </a>
+                <div class="flex items-center gap-3">
+                    <!-- Chart Button -->
+                    <button class="btn-chart p-1.5 rounded bg-gray-800 hover:bg-gray-700 text-gray-500 hover:text-blue-400 transition-colors border border-gray-700 hover:border-blue-500/50" title="Open Chart">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                        </svg>
+                    </button>
+                    <!-- Symbol Link -->
+                    <a href="#" target="_blank" class="row-link flex items-center gap-2 hover:underline decoration-blue-500/50">
+                        <span class="row-symbol">BTCUSDT</span>
+                    </a>
+                </div>
             </td>
             <td class="px-2 py-2 text-right font-bold row-change">0.00%</td>
         </tr>
@@ -340,9 +391,8 @@
                         try {
                             const result = await processFn(item);
                             if (result !== null) results.push(result);
-                        } catch (e) {
-                            // Ignore errors
-                        } finally {
+                        } catch (e) { /* ignore */ } 
+                        finally {
                             processedCount++;
                             if (progressCallback) progressCallback(processedCount, total);
                         }
@@ -352,6 +402,35 @@
                 const workers = Array(concurrencyLimit).fill(null).map(() => worker());
                 await Promise.all(workers);
                 return results;
+            },
+
+            // Convert hours to appropriate API interval and limit
+            getChartParams(hours) {
+                let interval, limit;
+                
+                // Logic: Try to get around 100-200 candles for the view
+                if (hours <= 1) { 
+                    interval = '1'; // 1 min candles
+                    limit = Math.min(200, hours * 60); 
+                } else if (hours <= 6) {
+                    interval = '5'; // 5 min candles
+                    limit = Math.ceil((hours * 60) / 5);
+                } else if (hours <= 24) {
+                    interval = '15'; // 15 min candles
+                    limit = Math.ceil((hours * 60) / 15);
+                } else if (hours <= 168) { // 7 days
+                    interval = '60'; // 1 hour candles
+                    limit = hours;
+                } else { // > 7 days
+                    interval = 'D'; // Daily
+                    limit = Math.ceil(hours / 24);
+                }
+
+                // Ensure limit is safe (Bybit max 1000)
+                if (limit > 1000) limit = 1000;
+                if (limit < 20) limit = 20; // Minimum candles for context
+
+                return { interval, limit };
             }
         };
 
@@ -413,10 +492,43 @@
                         return json.result.list.length > 0 ? json.result.list[0] : null;
                     } catch (e) {
                         retries--;
-                        if (retries > 0) await Utils.wait(300); // Wait 300ms before retry
+                        if (retries > 0) await Utils.wait(300);
                     }
                 }
                 return null;
+            },
+
+            // Fetch History for Chart
+            async fetchHistory(symbol, interval, limit) {
+                try {
+                    const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+                    const res = await fetch(url);
+                    const json = await res.json();
+                    
+                    if (json.retCode !== 0) {
+                        console.error("Bybit API Error:", json.retMsg);
+                        throw new Error(json.retMsg || "Bybit API returned error");
+                    }
+                    
+                    if (!json.result || !json.result.list) {
+                        return [];
+                    }
+                    
+                    // Bybit returns [startTime, open, high, low, close, volume, turnover]
+                    // Lightweight charts needs { time, open, high, low, close }
+                    // Bybit returns newest first, we need to sort to oldest first
+                    return json.result.list.map(k => ({
+                        time: parseInt(k[0]) / 1000, // Unix Timestamp (seconds)
+                        open: parseFloat(k[1]),
+                        high: parseFloat(k[2]),
+                        low: parseFloat(k[3]),
+                        close: parseFloat(k[4]),
+                    })).sort((a, b) => a.time - b.time);
+
+                } catch (e) {
+                    console.error("Chart data fetch failed", e);
+                    throw e; // Propagate error to be caught in showChart
+                }
             }
         };
 
@@ -453,12 +565,164 @@
                 modalList: document.getElementById('modal-list'),
                 modalCountDisplay: document.getElementById('modal-count-display'),
                 closeModalBtn: document.getElementById('btn-close-modal'),
-                // Modal dynamic content areas
                 modalTitle: document.getElementById('modal-title'),
                 modalDesc: document.getElementById('modal-desc'),
                 modalBodyList: document.getElementById('modal-body-list'),
-                modalFooter: document.getElementById('modal-footer')
+                modalFooter: document.getElementById('modal-footer'),
+                // Chart Modal Els
+                chartModal: document.getElementById('chart-modal'),
+                chartSymbol: document.getElementById('chart-symbol'),
+                chartBadge: document.getElementById('chart-timeframe-badge'),
+                chartContainer: document.getElementById('chart-container'),
+                chartLoading: document.getElementById('chart-loading'),
+                btnCloseChart: document.getElementById('btn-close-chart'),
+                chartTooltip: document.getElementById('chart-tooltip')
             },
+
+            // --- Charting ---
+            chartInstance: null,
+            candlestickSeries: null,
+
+            initChart() {
+                if (typeof LightweightCharts === 'undefined') {
+                    throw new Error("Charting library not loaded. Check internet connection.");
+                }
+
+                if (this.chartInstance) {
+                    // Resize to ensure it fits current container state
+                    const rect = this.els.chartContainer.getBoundingClientRect();
+                    if(rect.width > 0 && rect.height > 0) {
+                         this.chartInstance.applyOptions({ height: rect.height, width: rect.width });
+                    }
+                    return;
+                }
+
+                const chartOptions = {
+                    layout: {
+                        background: { type: 'solid', color: '#111827' }, // gray-900
+                        textColor: '#9ca3af', // gray-400
+                    },
+                    grid: {
+                        vertLines: { color: '#1f2937' }, // gray-800
+                        horzLines: { color: '#1f2937' },
+                    },
+                    crosshair: {
+                        mode: LightweightCharts.CrosshairMode.Normal,
+                    },
+                    rightPriceScale: {
+                        borderColor: '#374151',
+                    },
+                    timeScale: {
+                        borderColor: '#374151',
+                        timeVisible: true,
+                        secondsVisible: false,
+                    },
+                    autoSize: true, // Use built-in autoSize if supported or handle manually
+                };
+
+                this.chartInstance = LightweightCharts.createChart(this.els.chartContainer, chartOptions);
+                // FIX: v4 API change
+                this.candlestickSeries = this.chartInstance.addSeries(LightweightCharts.CandlestickSeries, {
+                    upColor: '#22c55e', // green-500
+                    downColor: '#ef4444', // red-500
+                    borderVisible: false,
+                    wickUpColor: '#22c55e',
+                    wickDownColor: '#ef4444',
+                });
+
+                // Auto resize observer
+                new ResizeObserver(entries => {
+                    if (entries.length === 0 || entries[0].target !== this.els.chartContainer) { return; }
+                    const newRect = entries[0].contentRect;
+                    if(this.chartInstance) {
+                         this.chartInstance.applyOptions({ height: newRect.height, width: newRect.width });
+                    }
+                }).observe(this.els.chartContainer);
+
+                // Tooltip
+                this.chartInstance.subscribeCrosshairMove(param => {
+                    if (param.point === undefined || !param.time || param.point.x < 0 || param.point.x > this.els.chartContainer.clientWidth || param.point.y < 0 || param.point.y > this.els.chartContainer.clientHeight) {
+                        this.els.chartTooltip.style.display = 'none';
+                    } else {
+                        const dateStr = new Date(param.time * 1000).toLocaleString();
+                        const data = param.seriesData.get(this.candlestickSeries);
+                        if(data) {
+                            const price = data.value !== undefined ? data.value : data.close;
+                            this.els.chartTooltip.style.display = 'block';
+                            this.els.chartTooltip.innerHTML = `
+                                <div class="font-bold text-white mb-1">${dateStr}</div>
+                                <div class="flex justify-between gap-4"><span class="text-gray-400">Open</span> <span>${data.open}</span></div>
+                                <div class="flex justify-between gap-4"><span class="text-gray-400">High</span> <span>${data.high}</span></div>
+                                <div class="flex justify-between gap-4"><span class="text-gray-400">Low</span> <span>${data.low}</span></div>
+                                <div class="flex justify-between gap-4"><span class="text-gray-400">Close</span> <span class="${data.close >= data.open ? 'text-green-400' : 'text-red-400'}">${data.close}</span></div>
+                            `;
+                        }
+                    }
+                });
+            },
+
+            async showChart(symbol, hours) {
+                try {
+                    // 1. Show Modal UI
+                    this.els.chartModal.classList.remove('hidden');
+                    this.els.chartModal.classList.add('flex');
+                    
+                    requestAnimationFrame(() => {
+                        this.els.chartModal.classList.remove('opacity-0');
+                    });
+                    
+                    this.els.chartSymbol.textContent = symbol;
+                    this.els.chartBadge.textContent = hours < 24 ? `${hours}h` : (hours % 24 === 0 ? `${hours/24}d` : `${hours}h`);
+                    this.els.chartLoading.classList.remove('hidden');
+                    this.els.chartLoading.classList.add('flex');
+
+                    // 2. Initialize Chart
+                    this.initChart();
+                    
+                    // Clear previous data
+                    if(this.candlestickSeries) {
+                         this.candlestickSeries.setData([]);
+                    }
+
+                    // 3. Calc Params
+                    const { interval, limit } = Utils.getChartParams(hours);
+                    
+                    // 4. Fetch Data
+                    const data = await Api.fetchHistory(symbol, interval, limit);
+                    
+                    if (!data || data.length === 0) {
+                        alert(`No historical data found for ${symbol}`);
+                        this.closeChart();
+                        return;
+                    }
+
+                    // 5. Update Chart
+                    if (this.candlestickSeries) {
+                        this.candlestickSeries.setData(data);
+                        this.chartInstance.timeScale().fitContent();
+                    }
+
+                } catch (e) {
+                    console.error("Show Chart Error:", e);
+                    alert("Error opening chart: " + e.message + "\nCheck console for details.");
+                    this.closeChart();
+                } finally {
+                    this.els.chartLoading.classList.add('hidden');
+                    this.els.chartLoading.classList.remove('flex');
+                }
+            },
+
+            closeChart() {
+                this.els.chartModal.classList.add('opacity-0');
+                setTimeout(() => {
+                    this.els.chartModal.classList.add('hidden');
+                    this.els.chartModal.classList.remove('flex');
+                    // Reset tooltips
+                    this.els.chartTooltip.style.display = 'none';
+                }, 300);
+            },
+
+            // --- Generic UI ---
 
             setLoading(isLoading, text = 'Loading...') {
                 if (isLoading) {
@@ -557,7 +821,7 @@
                 }, 300);
             },
 
-            renderCard(title, subtitle, data, ignoredSymbols = [], majorMovers = null) {
+            renderCard(title, subtitle, data, ignoredSymbols = [], majorMovers = null, currentHours) {
                 const tpl = document.getElementById('tpl-summary-card').content.cloneNode(true);
                 
                 const values = data.map(d => d.change);
@@ -584,27 +848,20 @@
                 const ignoredBtn = tpl.querySelector('.card-ignored');
                 ignoredBtn.textContent = ignoredCount;
                 
-                // === UPDATED BUTTON LOGIC ===
                 const ignoredBtnContainer = tpl.querySelector('.card-ignored-btn');
                 const ignoredIcon = ignoredBtnContainer.querySelector('.ignored-icon');
                 
                 if (ignoredCount > 0) {
                     ignoredBtnContainer.disabled = false;
-                    // Visual cues: pointer, hover effects
                     ignoredBtnContainer.classList.add('cursor-pointer', 'hover:bg-gray-700', 'hover:border-gray-500');
                     ignoredBtnContainer.classList.remove('opacity-50', 'cursor-default');
-                    
-                    // Icon visible immediately if active
                     ignoredIcon.classList.remove('opacity-0');
                     ignoredIcon.classList.add('opacity-100', 'text-blue-400');
-
                     ignoredBtnContainer.addEventListener('click', () => this.showModal('ignored', ignoredSymbols));
                 } else {
                     ignoredBtnContainer.disabled = true;
                     ignoredBtnContainer.classList.add('opacity-50', 'cursor-default');
                     ignoredBtnContainer.classList.remove('hover:bg-gray-700', 'hover:border-gray-500', 'cursor-pointer');
-                    
-                    // Hide icon
                     ignoredIcon.classList.add('opacity-0');
                     ignoredIcon.classList.remove('opacity-100');
                 }
@@ -628,31 +885,39 @@
 
                 const tablesContainer = tpl.querySelector('.card-tables');
                 
-                // REPLACED GLYPHS WITH EMOJIS IN JS AS WELL
                 if (data.length <= 10) {
                     tablesContainer.classList.remove('grid-cols-1', 'md:grid-cols-2'); 
                     const sortedData = [...data].sort((a,b) => b.change - a.change);
-                    tablesContainer.appendChild(this.createTable('📊 Performance', sortedData));
+                    tablesContainer.appendChild(this.createTable('📊 Performance', sortedData, currentHours));
                 } else {
                     const gainersData = [...data].sort((a,b) => b.change - a.change).slice(0, 10);
-                    tablesContainer.appendChild(this.createTable('🚀 Top 10 Gainers', gainersData));
+                    tablesContainer.appendChild(this.createTable('🚀 Top 10 Gainers', gainersData, currentHours));
 
                     const losersData = [...data].sort((a,b) => a.change - b.change).slice(0, 10);
-                    tablesContainer.appendChild(this.createTable('📉 Top 10 Losers', losersData));
+                    tablesContainer.appendChild(this.createTable('📉 Top 10 Losers', losersData, currentHours));
                 }
 
                 return tpl.firstElementChild;
             },
 
-            createTable(title, rowsData) {
+            createTable(title, rowsData, currentHours) {
                 const tpl = document.getElementById('tpl-table').content.cloneNode(true);
                 tpl.querySelector('.table-header-title').innerHTML = title;
                 const tbody = tpl.querySelector('.table-body');
                 
                 rowsData.forEach(item => {
                     const row = document.getElementById('tpl-row').content.cloneNode(true);
+                    
                     row.querySelector('.row-symbol').textContent = item.symbol;
                     row.querySelector('.row-link').href = `https://www.bybit.com/trade/usdt/${item.symbol}`;
+                    
+                    // Add Click Event for Chart
+                    const chartBtn = row.querySelector('.btn-chart');
+                    chartBtn.addEventListener('click', (e) => {
+                        e.stopPropagation(); // prevent other row clicks if any
+                        this.showChart(item.symbol, currentHours);
+                    });
+
                     const changeEl = row.querySelector('.row-change');
                     changeEl.textContent = `${item.change > 0 ? '+' : ''}${item.change.toFixed(2)}%`;
                     changeEl.className = `px-2 py-2 text-right font-bold row-change ${Utils.getColorClass(item.change)}`;
@@ -706,6 +971,9 @@
                 UI.els.modalBackdrop.addEventListener('click', (e) => {
                     if (e.target === UI.els.modalBackdrop) UI.closeModal();
                 });
+
+                // Chart Modal Listeners
+                UI.els.btnCloseChart.addEventListener('click', () => UI.closeChart());
             }
 
             handleCustomInput() {
@@ -808,9 +1076,8 @@
                     UI.clearResults();
                     UI.setLoading(true, `Preparing ${mode} analysis (${timeLabel})...`);
 
-                    // FETCH INSTRUMENTS WITH LAUNCH TIME
+                    // FETCH INSTRUMENTS
                     const instrumentsData = await Api.fetchInstruments();
-                    // Map for fast lookup: symbol -> launchTime (ms)
                     const launchTimeMap = new Map(instrumentsData.map(i => [i.symbol, i.launchTime]));
 
                     let symbolsToAnalyze = [];
@@ -836,7 +1103,6 @@
 
                     if (symbolsToAnalyze.length === 0) throw new Error("No symbols found");
 
-                    // CUTOFF TIME LOGIC
                     const cutoffTime = Date.now() - (hours * 3600 * 1000);
 
                     UI.setLoading(true, `Fetching data for ${symbolsToAnalyze.length} symbols...`);
@@ -848,7 +1114,6 @@
                         results = symbolsToAnalyze.map(sym => {
                             const t = tickerMap.get(sym);
                             
-                            // FILTER YOUNG TOKENS
                             const launchTime = launchTimeMap.get(sym);
                             if (launchTime && launchTime > cutoffTime) {
                                 return null; 
@@ -872,7 +1137,6 @@
                         }
 
                         results = await Utils.processWithConcurrency(symbolsToAnalyze, 30, async (sym) => {
-                            // FILTER YOUNG TOKENS
                             const launchTime = launchTimeMap.get(sym);
                             if (launchTime && launchTime > cutoffTime) {
                                 return null; 
@@ -898,7 +1162,7 @@
                                 return null;
                             }
 
-                            const historicPrice = parseFloat(kline[4]); // Close price
+                            const historicPrice = parseFloat(kline[4]); 
                             const currentPrice = parseFloat(ticker.lastPrice);
                             
                             if (historicPrice === 0) return null;
@@ -923,7 +1187,7 @@
                         const allAnalyzedSymbols = results.map(r => r.symbol);
                         const ignoredSymbols = symbolsToAnalyze.filter(s => !allAnalyzedSymbols.includes(s));
 
-                        const card = UI.renderCard('Full Market Analysis', `Timeframe: ${timeLabel}`, statsResults, ignoredSymbols, majorMovers);
+                        const card = UI.renderCard('Full Market Analysis', `Timeframe: ${timeLabel}`, statsResults, ignoredSymbols, majorMovers, hours);
                         UI.els.resultsArea.appendChild(card);
                     } else {
                         const longs = Object.keys(this.watchlists.long_watchlist || {});
@@ -940,8 +1204,9 @@
                         
                         const grid = document.createElement('div');
                         grid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-8';
-                        grid.appendChild(UI.renderCard('Long Watchlist', `${resLong.length} Symbols`, resLong, longIgnored));
-                        grid.appendChild(UI.renderCard('Short Watchlist', `${resShort.length} Symbols`, resShort, shortIgnored));
+                        // Pass current hours
+                        grid.appendChild(UI.renderCard('Long Watchlist', `${resLong.length} Symbols`, resLong, longIgnored, null, hours));
+                        grid.appendChild(UI.renderCard('Short Watchlist', `${resShort.length} Symbols`, resShort, shortIgnored, null, hours));
                         UI.els.resultsArea.appendChild(grid);
                     }
 
