@@ -567,6 +567,8 @@
                 resultsArea: document.getElementById('results-area'),
                 timeButtons: document.querySelectorAll('#timeframe-buttons button'),
                 buttonsContainer: document.getElementById('buttons-container'),
+                // ADDED: Wrapper for just the buttons to target opacity
+                buttonsWrapper: document.getElementById('timeframe-buttons'),
                 customContainer: document.getElementById('custom-input-container'),
                 customVal: document.getElementById('custom-time-val'),
                 customUnit: document.getElementById('custom-time-unit'),
@@ -1108,11 +1110,12 @@
                     UI.els.customLabel.classList.add('text-gray-500');
                 }
 
+                // CHANGED: Target only the buttons wrapper, not the container with the H2
                 if (isActive) {
-                    UI.els.buttonsContainer.classList.add('section-dimmed');
+                    UI.els.buttonsWrapper.classList.add('section-dimmed');
                     UI.els.customContainer.classList.remove('section-dimmed');
                 } else {
-                    UI.els.buttonsContainer.classList.remove('section-dimmed');
+                    UI.els.buttonsWrapper.classList.remove('section-dimmed');
                     UI.els.customContainer.classList.add('section-dimmed');
                 }
             }
