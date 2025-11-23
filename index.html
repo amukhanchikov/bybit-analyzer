@@ -906,11 +906,14 @@
                     moversContainer.classList.remove('hidden');
                     majorMovers.forEach(m => {
                         const div = document.createElement('div');
-                        div.className = 'bg-gray-900/50 p-3 rounded-lg border border-gray-700 text-center';
+                        div.className = 'bg-gray-900/50 p-3 rounded-lg border border-gray-700 text-center cursor-pointer hover:bg-gray-800 hover:border-gray-500 transition-all active:scale-95';
                         div.innerHTML = `
                             <div class="text-sm text-gray-400 font-bold mb-1">${m.symbol.replace('USDT','')}</div>
                             <div class="text-lg font-bold ${Utils.getColorClass(m.change)}">${m.change > 0 ? '+' : ''}${m.change}%</div>
                         `;
+                        div.addEventListener('click', () => {
+                             this.showChart(m.symbol, currentHours);
+                        });
                         moversContainer.appendChild(div);
                     });
                 }
