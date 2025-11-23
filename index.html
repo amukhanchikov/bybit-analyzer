@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Bybit Futures Analyzer</title>
     
-    <!-- FIXED FAVICON (Standard emoji 📈) -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📈</text></svg>">
+    <!-- FIXED FAVICON (Swapped to Rocket 🚀) -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
 
     <!-- LIBRARIES -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -927,7 +927,8 @@
                     tablesContainer.appendChild(this.createTable('📈 Performance', sortedData, currentHours));
                 } else {
                     const gainersData = [...data].sort((a,b) => b.change - a.change).slice(0, 10);
-                    tablesContainer.appendChild(this.createTable('🚀 Top 10 Gainers', gainersData, currentHours));
+                    // CHANGED ICON HERE (Swapped to Chart)
+                    tablesContainer.appendChild(this.createTable('📈 Top 10 Gainers', gainersData, currentHours));
 
                     const losersData = [...data].sort((a,b) => a.change - b.change).slice(0, 10);
                     tablesContainer.appendChild(this.createTable('📉 Top 10 Losers', losersData, currentHours));
