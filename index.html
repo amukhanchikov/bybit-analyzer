@@ -32,6 +32,18 @@
         href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
 
     <!-- Libraries -->
+    <script>
+        // Suppress Tailwind CDN production warning
+        (function () {
+            var oldWarn = console.warn;
+            console.warn = function (...args) {
+                if (args.length > 0 && typeof args[0] === 'string' && args[0].startsWith('cdn.tailwindcss.com should not be used in production')) {
+                    return;
+                }
+                oldWarn.apply(console, args);
+            };
+        })();
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 

@@ -306,7 +306,13 @@ const UI = {
             if (param.point === undefined || !param.time || param.point.x < 0 || param.point.x > this.els.chartContainer.clientWidth || param.point.y < 0 || param.point.y > this.els.chartContainer.clientHeight) {
                 this.els.chartTooltip.style.display = 'none';
             } else {
-                const dateStr = new Date(param.time * 1000).toLocaleString('en-GB');
+                const dateStr = new Date(param.time * 1000).toLocaleString('en-GB', {
+                    year: 'numeric',
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                });
                 const data = param.seriesData.get(this.candlestickSeries);
                 if (data) {
                     const price = data.value !== undefined ? data.value : data.close;
