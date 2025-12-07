@@ -393,8 +393,15 @@ const UI = {
                     const instruments = await Api.fetchInstruments();
                     const inst = instruments.find(i => i.symbol === symbol);
                     if (inst && inst.tickSize) {
+                        // FIX: '0.10' -> '0.1' regarding precision
+                        let tsStr = inst.tickSize;
+                        if (tsStr.includes('.')) {
+                            tsStr = tsStr.replace(/0+$/, '');
+                            if (tsStr.endsWith('.')) tsStr = tsStr.slice(0, -1);
+                        }
+
                         const tickSize = parseFloat(inst.tickSize);
-                        const precision = (inst.tickSize.split('.')[1] || '').length;
+                        const precision = (tsStr.split('.')[1] || '').length;
 
                         this.candlestickSeries.applyOptions({
                             priceFormat: {
