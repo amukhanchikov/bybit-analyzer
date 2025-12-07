@@ -174,34 +174,51 @@ const Api = {
 
     // Fetch History for Chart
     async fetchHistory(symbol, interval, limit) {
-        try {
-            const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
-            const res = await fetch(url);
-            const json = await res.json();
+        let retries = 3;
+        while (retries > 0) {
+            try {
+                const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
+                const res = await fetch(url);
 
-            if (json.retCode !== 0) {
-                console.error("Bybit API Error:", json.retMsg);
-                throw new Error(json.retMsg || "Bybit API returned error");
+                // Allow network errors to be caught below to trigger retry
+                if (!res.ok) throw new Error(`Network error: ${res.status}`);
+
+                const json = await res.json();
+
+                if (json.retCode !== 0) {
+                    // API errors might be permanent (e.g. invalid symbol), but some (rate limit) might be transient.
+                    // For safety, if it's a "Rate limit" or similar, we might want to retry.
+                    // But generally, retMsg errors are better just thrown or retried cautiously.
+                    // Let's retry only on specific system errors or just throw for logic errors.
+                    // For simplicity and consistency with fetchKline, we throw.
+                    // If we want to retry on 429/500, we should check that.
+                    // But standard 'retMsg' usually implies logic error.
+                    throw new Error(json.retMsg || "Bybit API returned error");
+                }
+
+                if (!json.result || !json.result.list) {
+                    return [];
+                }
+
+                // Bybit returns [startTime, open, high, low, close, volume, turnover]
+                // Lightweight charts needs { time, open, high, low, close }
+                // Bybit returns newest first, we need to sort to oldest first
+                return json.result.list.map(k => ({
+                    time: parseInt(k[0]) / 1000, // Unix Timestamp (seconds)
+                    open: parseFloat(k[1]),
+                    high: parseFloat(k[2]),
+                    low: parseFloat(k[3]),
+                    close: parseFloat(k[4]),
+                })).sort((a, b) => a.time - b.time);
+
+            } catch (e) {
+                retries--;
+                if (retries === 0) {
+                    console.error("Chart data fetch failed after retries", e);
+                    throw e;
+                }
+                await Utils.wait(300);
             }
-
-            if (!json.result || !json.result.list) {
-                return [];
-            }
-
-            // Bybit returns [startTime, open, high, low, close, volume, turnover]
-            // Lightweight charts needs { time, open, high, low, close }
-            // Bybit returns newest first, we need to sort to oldest first
-            return json.result.list.map(k => ({
-                time: parseInt(k[0]) / 1000, // Unix Timestamp (seconds)
-                open: parseFloat(k[1]),
-                high: parseFloat(k[2]),
-                low: parseFloat(k[3]),
-                close: parseFloat(k[4]),
-            })).sort((a, b) => a.time - b.time);
-
-        } catch (e) {
-            console.error("Chart data fetch failed", e);
-            throw e; // Propagate error to be caught in showChart
         }
     }
 };
