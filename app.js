@@ -26,6 +26,14 @@ const Config = {
  */
 const Utils = {
     wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+    debounce: (func, wait) => {
+        let timeout;
+        return function (...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    },
     getColorClass: (val) => val > 0 ? 'text-green-500' : (val < 0 ? 'text-red-500' : 'text-gray-400'),
 
     calculateMedian: (values) => {
@@ -130,10 +138,19 @@ const Api = {
         } catch (e) { throw new Error("Failed to fetch instruments: " + e.message); }
     },
 
+    // Cache tickers for 15 seconds to prevent spamming
+    tickersCache: { data: null, ts: 0 },
+
     async fetchAllTickers() {
+        if (this.tickersCache.data && (Date.now() - this.tickersCache.ts < 15000)) {
+            return this.tickersCache.data;
+        }
         const res = await fetch(`${Config.API_URL}${Config.ENDPOINTS.TICKERS}`);
         const json = await res.json();
         if (json.retCode !== 0) throw new Error(json.retMsg);
+
+        this.tickersCache.data = json.result.list;
+        this.tickersCache.ts = Date.now();
         return json.result.list;
     },
 
@@ -437,9 +454,12 @@ const UI = {
     },
 
     updateProgress(current, total) {
-        const pct = total > 0 ? (current / total) * 100 : 0;
-        this.els.progressBar.style.width = `${pct}%`;
-        this.els.progressStats.textContent = total > 0 ? `${current} / ${total}` : '';
+        if (this.progressReq) cancelAnimationFrame(this.progressReq);
+        this.progressReq = requestAnimationFrame(() => {
+            const pct = total > 0 ? (current / total) * 100 : 0;
+            this.els.progressBar.style.width = `${pct}%`;
+            this.els.progressStats.textContent = total > 0 ? `${current} / ${total}` : '';
+        });
     },
 
     showError(msg) {
@@ -708,11 +728,15 @@ class Analyzer {
             el.addEventListener('focus', () => this.handleCustomInput());
         });
 
-        // Listen for changes in Exclude Input
-        UI.els.excludeInput.addEventListener('input', (e) => {
-            const val = e.target.value;
+        // Listen for changes in Exclude Input (Debounced)
+        const debouncedSave = Utils.debounce((val) => {
             localStorage.setItem(Config.STORAGE_KEYS.EXCLUDED, val);
             this.updateResetButtonState(val);
+        }, 500);
+
+        UI.els.excludeInput.addEventListener('input', (e) => {
+            debouncedSave(e.target.value);
+            // Optionally update UI immediately if needed, but here we just wait for storage save
         });
 
         // Reset Button Listener
