@@ -605,6 +605,7 @@ const UI = {
         const tpl = document.getElementById('tpl-table').content.cloneNode(true);
         tpl.querySelector('.table-header-title').innerHTML = title;
         const tbody = tpl.querySelector('.table-body');
+        const fragment = document.createDocumentFragment();
 
         rowsData.forEach(item => {
             const row = document.getElementById('tpl-row').content.cloneNode(true);
@@ -613,18 +614,28 @@ const UI = {
             row.querySelector('.row-symbol').textContent = item.symbol.replace('USDT', '');
             row.querySelector('.row-link').href = `https://www.bybit.com/trade/usdt/${item.symbol}`;
 
-            // Add Click Event for Chart (KEEP FULL SYMBOL)
+            // Add Data Attribute for Event Delegation
             const chartBtn = row.querySelector('.btn-chart');
-            chartBtn.addEventListener('click', (e) => {
-                e.stopPropagation(); // prevent other row clicks if any
-                this.showChart(item.symbol, currentHours);
-            });
+            chartBtn.dataset.symbol = item.symbol;
 
             const changeEl = row.querySelector('.row-change');
             changeEl.textContent = `${item.change > 0 ? '+' : ''}${item.change.toFixed(2)}%`;
             changeEl.className = `px-2 py-2 text-right font-bold row-change ${Utils.getColorClass(item.change)}`;
-            tbody.appendChild(row);
+
+            fragment.appendChild(row);
         });
+
+        tbody.appendChild(fragment);
+
+        // Event Delegation
+        tbody.addEventListener('click', (e) => {
+            const btn = e.target.closest('.btn-chart');
+            if (btn) {
+                e.stopPropagation();
+                this.showChart(btn.dataset.symbol, currentHours);
+            }
+        });
+
         return tpl;
     }
 };
@@ -846,15 +857,8 @@ class Analyzer {
         try {
             const { hours, is24h } = this.getTimeframeConfig();
 
-            let timeLabel;
-            if (hours < 1) {
-                timeLabel = `${Math.round(hours * 60)} Minutes`;
-            } else if (hours >= 24 && hours % 24 === 0) {
-                const days = hours / 24;
-                timeLabel = `${days} ${days === 1 ? 'Day' : 'Days'}`;
-            } else {
-                timeLabel = `${parseFloat(hours.toFixed(2))} Hours`;
-            }
+            // Generate simplified time label
+            const timeLabel = this.generateTimeLabel(hours);
 
             UI.clearResults();
             UI.setLoading(true, `Preparing ${mode} analysis (${timeLabel})...`);
@@ -863,137 +867,156 @@ class Analyzer {
             const instrumentsData = await Api.fetchInstruments();
             const launchTimeMap = new Map(instrumentsData.map(i => [i.symbol, i.launchTime]));
 
-            let symbolsToAnalyze = [];
-
-            if (mode === 'market') {
-                const excludeInput = document.getElementById('exclude-input').value
-                    .toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
-
-                symbolsToAnalyze = instrumentsData
-                    .map(i => i.symbol)
-                    .filter(s => !excludeInput.includes(s.replace('USDT', '')));
-
-                ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].forEach(m => {
-                    if (!symbolsToAnalyze.includes(m)) symbolsToAnalyze.push(m);
-                });
-            } else {
-                if (!this.watchlists) throw new Error("No watchlist loaded");
-                const combined = new Set();
-                if (this.watchlists.long_watchlist) Object.keys(this.watchlists.long_watchlist).forEach(k => combined.add(k));
-                if (this.watchlists.short_watchlist) Object.keys(this.watchlists.short_watchlist).forEach(k => combined.add(k));
-                symbolsToAnalyze = Array.from(combined);
-            }
+            // DETERMINE SYMBOLS TO ANALYZE
+            const symbolsToAnalyze = this.getSymbolsToAnalyze(mode, instrumentsData);
 
             if (symbolsToAnalyze.length === 0) throw new Error("No symbols found");
 
             const cutoffTime = Date.now() - (hours * 3600 * 1000);
 
             UI.setLoading(true, `Fetching data for ${symbolsToAnalyze.length} symbols...`);
-            const allTickers = await Api.fetchAllTickers();
-            const tickerMap = new Map(allTickers.map(t => [t.symbol, t]));
 
             let results = [];
+
             if (is24h) {
-                results = symbolsToAnalyze.map(sym => {
-                    const t = tickerMap.get(sym);
-
-                    const launchTime = launchTimeMap.get(sym);
-                    if (launchTime && launchTime > cutoffTime) {
-                        return null;
-                    }
-
-                    return t ? { symbol: sym, change: parseFloat(parseFloat(t.price24hPcnt * 100).toFixed(2)) } : null;
-                }).filter(Boolean);
+                const allTickers = await Api.fetchAllTickers();
+                const tickerMap = new Map(allTickers.map(t => [t.symbol, t]));
+                results = this.processTickerData(symbolsToAnalyze, tickerMap, launchTimeMap, cutoffTime);
             } else {
-                const now = new Date();
-
-                let interval;
-                let startTimeRaw = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()) - (hours * 3600 * 1000);
-                let startTime = startTimeRaw;
-
-                if (hours <= 24) {
-                    interval = '5';
-                } else if (hours <= 720) {
-                    interval = '60';
-                } else {
-                    interval = 'D';
-                }
-
-                results = await Utils.processWithConcurrency(symbolsToAnalyze, 30, async (sym) => {
-                    const launchTime = launchTimeMap.get(sym);
-                    if (launchTime && launchTime > cutoffTime) {
-                        return null;
-                    }
-
-                    const ticker = tickerMap.get(sym);
-                    if (!ticker) return null;
-
-                    const kline = await Api.fetchKline(sym, interval, startTime);
-                    if (!kline) return null;
-
-                    const candleTime = parseInt(kline[0]);
-
-                    let tolerance;
-                    switch (interval) {
-                        case '5': tolerance = 5 * 60 * 1000 * 4; break;
-                        case '60': tolerance = 2 * 60 * 60 * 1000; break;
-                        case 'D': tolerance = 3 * 24 * 60 * 60 * 1000; break;
-                        default: tolerance = 60 * 60 * 1000;
-                    }
-
-                    if (candleTime > startTime + tolerance) {
-                        return null;
-                    }
-
-                    const historicPrice = parseFloat(kline[4]);
-                    const currentPrice = parseFloat(ticker.lastPrice);
-
-                    if (historicPrice === 0) return null;
-
-                    return {
-                        symbol: sym,
-                        change: parseFloat((((currentPrice - historicPrice) / historicPrice) * 100).toFixed(2))
-                    };
-                }, (c, t) => UI.updateProgress(c, t));
+                results = await this.processKlineData(symbolsToAnalyze, hours, launchTimeMap, cutoffTime);
             }
 
             UI.setLoading(false);
             UI.showResults();
 
-            if (mode === 'market') {
-                const majorSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
-                const majorMovers = majorSymbols.map(s => results.find(r => r.symbol === s)).filter(Boolean);
-
-                const excludeInput = document.getElementById('exclude-input').value.toUpperCase().split(',').map(s => s.trim());
-                const statsResults = results.filter(r => !excludeInput.includes(r.symbol.replace('USDT', '')));
-
-                const allAnalyzedSymbols = results.map(r => r.symbol);
-                const ignoredSymbols = symbolsToAnalyze.filter(s => !allAnalyzedSymbols.includes(s));
-
-                const card = UI.renderCard('Full Market Analysis', `Timeframe: ${timeLabel}`, statsResults, ignoredSymbols, majorMovers, hours);
-                UI.els.resultsArea.appendChild(card);
-            } else {
-                const longs = Object.keys(this.watchlists.long_watchlist || {});
-                const shorts = Object.keys(this.watchlists.short_watchlist || {});
-
-                const resLong = results.filter(r => longs.includes(r.symbol));
-                const resShort = results.filter(r => shorts.includes(r.symbol));
-
-                const longAnalyzed = resLong.map(r => r.symbol);
-                const shortAnalyzed = resShort.map(r => r.symbol);
-
-                const longIgnored = longs.filter(s => !longAnalyzed.includes(s));
-                const shortIgnored = shorts.filter(s => !shortAnalyzed.includes(s));
-
-                const grid = document.createElement('div');
-                grid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-8';
-                // Pass current hours
-                grid.appendChild(UI.renderCard('Long Watchlist', `${resLong.length} Symbols`, resLong, longIgnored, null, hours));
-                grid.appendChild(UI.renderCard('Short Watchlist', `${resShort.length} Symbols`, resShort, shortIgnored, null, hours));
-                UI.els.resultsArea.appendChild(grid);
-            }
+            this.renderAnalysisResults(mode, results, symbolsToAnalyze, timeLabel, hours);
 
         } catch (e) { UI.showError(e.message); }
+    }
+
+    // --- Helper Methods ---
+
+    generateTimeLabel(hours) {
+        if (hours < 1) {
+            return `${Math.round(hours * 60)} Minutes`;
+        } else if (hours >= 24 && hours % 24 === 0) {
+            const days = hours / 24;
+            return `${days} ${days === 1 ? 'Day' : 'Days'}`;
+        } else {
+            return `${parseFloat(hours.toFixed(2))} Hours`;
+        }
+    }
+
+    getSymbolsToAnalyze(mode, instrumentsData) {
+        if (mode === 'market') {
+            // OPTIMIZED: Cache excluded set until changed? For now, clean parsing is enough.
+            const excludeInput = document.getElementById('exclude-input').value
+                .toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+            const excludedSet = new Set(excludeInput);
+
+            const list = instrumentsData
+                .map(i => i.symbol)
+                .filter(s => !excludedSet.has(s.replace('USDT', '')));
+
+            // Ensure major symbols are present
+            ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'].forEach(m => {
+                if (!list.includes(m)) list.push(m);
+            });
+            return list;
+        } else {
+            if (!this.watchlists) throw new Error("No watchlist loaded");
+            const combined = new Set();
+            if (this.watchlists.long_watchlist) Object.keys(this.watchlists.long_watchlist).forEach(k => combined.add(k));
+            if (this.watchlists.short_watchlist) Object.keys(this.watchlists.short_watchlist).forEach(k => combined.add(k));
+            return Array.from(combined);
+        }
+    }
+
+    processTickerData(symbols, tickerMap, launchTimeMap, cutoffTime) {
+        return symbols.map(sym => {
+            const t = tickerMap.get(sym);
+            const launchTime = launchTimeMap.get(sym);
+            if (launchTime && launchTime > cutoffTime) return null;
+            return t ? { symbol: sym, change: parseFloat(parseFloat(t.price24hPcnt * 100).toFixed(2)) } : null;
+        }).filter(Boolean);
+    }
+
+    async processKlineData(symbols, hours, launchTimeMap, cutoffTime) {
+        const now = new Date();
+        const startTime = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes()) - (hours * 3600 * 1000);
+
+        let interval;
+        if (hours <= 24) interval = '5';
+        else if (hours <= 720) interval = '60';
+        else interval = 'D';
+
+        const tickerMap = new Map((await Api.fetchAllTickers()).map(t => [t.symbol, t]));
+
+        return Utils.processWithConcurrency(symbols, 30, async (sym) => {
+            const launchTime = launchTimeMap.get(sym);
+            if (launchTime && launchTime > cutoffTime) return null;
+
+            const ticker = tickerMap.get(sym);
+            if (!ticker) return null;
+
+            const kline = await Api.fetchKline(sym, interval, startTime);
+            if (!kline) return null;
+
+            const candleTime = parseInt(kline[0]);
+            let tolerance;
+            switch (interval) {
+                case '5': tolerance = 5 * 60 * 1000 * 4; break;
+                case '60': tolerance = 2 * 60 * 60 * 1000; break;
+                case 'D': tolerance = 3 * 24 * 60 * 60 * 1000; break;
+                default: tolerance = 60 * 60 * 1000;
+            }
+
+            if (candleTime > startTime + tolerance) return null;
+
+            const historicPrice = parseFloat(kline[4]);
+            const currentPrice = parseFloat(ticker.lastPrice);
+            if (historicPrice === 0) return null;
+
+            return {
+                symbol: sym,
+                change: parseFloat((((currentPrice - historicPrice) / historicPrice) * 100).toFixed(2))
+            };
+        }, (c, t) => UI.updateProgress(c, t));
+    }
+
+    renderAnalysisResults(mode, results, symbolsToAnalyze, timeLabel, hours) {
+        if (mode === 'market') {
+            const majorSymbols = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT'];
+            const majorMovers = majorSymbols.map(s => results.find(r => r.symbol === s)).filter(Boolean);
+
+            const excludeInput = document.getElementById('exclude-input').value.toUpperCase().split(',').map(s => s.trim());
+            const statsResults = results.filter(r => !excludeInput.includes(r.symbol.replace('USDT', '')));
+
+            const allAnalyzedSymbols = results.map(r => r.symbol);
+            const ignoredSymbols = symbolsToAnalyze.filter(s => !allAnalyzedSymbols.includes(s));
+
+            const card = UI.renderCard('Full Market Analysis', `Timeframe: ${timeLabel}`, statsResults, ignoredSymbols, majorMovers, hours);
+            UI.els.resultsArea.appendChild(card);
+        } else {
+            const longs = Object.keys(this.watchlists.long_watchlist || {});
+            const shorts = Object.keys(this.watchlists.short_watchlist || {});
+
+            const resLong = results.filter(r => longs.includes(r.symbol));
+            const resShort = results.filter(r => shorts.includes(r.symbol));
+
+            // Logic to calculate ignored could be extracted too, but this is fine for now
+            const longAnalyzed = resLong.map(r => r.symbol);
+            const shortAnalyzed = resShort.map(r => r.symbol);
+
+            const longIgnored = longs.filter(s => !longAnalyzed.includes(s));
+            const shortIgnored = shorts.filter(s => !shortAnalyzed.includes(s));
+
+            const grid = document.createElement('div');
+            grid.className = 'grid grid-cols-1 xl:grid-cols-2 gap-8';
+            grid.appendChild(UI.renderCard('Long Watchlist', `${resLong.length} Symbols`, resLong, longIgnored, null, hours));
+            grid.appendChild(UI.renderCard('Short Watchlist', `${resShort.length} Symbols`, resShort, shortIgnored, null, hours));
+            UI.els.resultsArea.appendChild(grid);
+        }
     }
 
     saveFavorite() {
