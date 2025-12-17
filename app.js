@@ -3,6 +3,7 @@
  */
 const Config = {
     API_URL: 'https://api.bybit.com',
+    VERSION: '2.0.0', // App version
     ENDPOINTS: {
         INSTRUMENTS: '/v5/market/instruments-info?category=linear&limit=1000',
         TICKERS: '/v5/market/tickers?category=linear',
@@ -11,13 +12,76 @@ const Config = {
     STORAGE_KEYS: {
         FAVORITES: 'bybit_analyzer_favs_v2',
         CACHE_INSTRUMENTS: 'bybit_instruments_cache_v4',
-        EXCLUDED: 'bybit_analyzer_excluded_v1', // Stores text string
-        TIMEFRAME: 'bybit_analyzer_tf_v1' // Stores object: {type: 'preset'|'custom', val: number, unit: string}
+        EXCLUDED: 'bybit_analyzer_excluded_v1',
+        TIMEFRAME: 'bybit_analyzer_tf_v1'
     },
     DEFAULTS: {
         EXCLUDED: "BTC, ETH, ETHBTC, PAXG, RLUSD, SOL, USD1, USDC, USDE, XAUT",
         TIMEFRAME_VAL: 24,
         TIMEFRAME_TYPE: 'preset'
+    },
+    // Performance constants
+    CONCURRENCY_LIMIT: 30,
+    RETRY_DELAY_MS: 300,
+    RETRY_MAX_ATTEMPTS: 3,
+    CACHE_TTL: {
+        INSTRUMENTS: 3600 * 1000,
+        TICKERS: 15 * 1000
+    }
+};
+
+/**
+ * ERROR HANDLING & VALIDATION
+ */
+const ErrorHandler = {
+    init() {
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('❌ Unhandled promise rejection:', event.reason);
+            if (UI && UI.showError) {
+                UI.showError(event.reason?.message || 'An unexpected error occurred.');
+            }
+            event.preventDefault();
+        });
+
+        window.addEventListener('error', (event) => {
+            console.error('❌ Runtime error:', event.error);
+            if (UI && UI.showError) UI.showError('An unexpected error occurred.');
+        });
+    },
+
+    logError(context, error) {
+        console.error(`❌ Error in ${context}:`, error);
+    }
+};
+
+// Initialize listeners
+ErrorHandler.init();
+
+const Validator = {
+    validateWatchlist(data) {
+        if (!data || typeof data !== 'object') return { valid: false, error: 'Invalid JSON format' };
+
+        const hasLong = data.long_watchlist && typeof data.long_watchlist === 'object';
+        const hasShort = data.short_watchlist && typeof data.short_watchlist === 'object';
+
+        if (!hasLong && !hasShort) {
+            return { valid: false, error: 'Watchlist must contain "long_watchlist" or "short_watchlist"' };
+        }
+        return { valid: true };
+    },
+
+    validateTimeframe(val, unit) {
+        const num = parseFloat(val);
+        if (isNaN(num) || num <= 0) return { valid: false, error: 'Timeframe must be positive' };
+        if (!['m', 'h', 'd'].includes(unit)) return { valid: false, error: 'Invalid unit' };
+
+        // Calculate max hours (1 year approx)
+        let hours = num;
+        if (unit === 'm') hours /= 60;
+        if (unit === 'd') hours *= 24;
+
+        if (hours > 8760) return { valid: false, error: 'Timeframe cannot exceed 1 year' };
+        return { valid: true, hours };
     }
 };
 
@@ -55,8 +119,12 @@ const Utils = {
                 try {
                     const result = await processFn(item);
                     if (result !== null) results.push(result);
-                } catch (e) { /* ignore */ }
-                finally {
+                } catch (e) {
+                    // Log but don't stop the whole process
+                    // ErrorHandler.logError(`process item`, e); 
+                    // Keeping silent to avoid console spam during massive processing, 
+                    // or usage of a specific log level if implemented.
+                } finally {
                     processedCount++;
                     if (progressCallback) progressCallback(processedCount, total);
                 }
@@ -155,7 +223,7 @@ const Api = {
     },
 
     async fetchKline(symbol, interval, start) {
-        let retries = 3;
+        let retries = Config.RETRY_MAX_ATTEMPTS;
         while (retries > 0) {
             try {
                 const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&start=${start}&limit=1`;
@@ -166,7 +234,8 @@ const Api = {
                 return json.result.list.length > 0 ? json.result.list[0] : null;
             } catch (e) {
                 retries--;
-                if (retries > 0) await Utils.wait(300);
+                if (retries > 0) await Utils.wait(Config.RETRY_DELAY_MS);
+                else ErrorHandler.logError('fetchKline', e);
             }
         }
         return null;
@@ -174,25 +243,17 @@ const Api = {
 
     // Fetch History for Chart
     async fetchHistory(symbol, interval, limit) {
-        let retries = 3;
+        let retries = Config.RETRY_MAX_ATTEMPTS;
         while (retries > 0) {
             try {
                 const url = `${Config.API_URL}${Config.ENDPOINTS.KLINE}?category=linear&symbol=${symbol}&interval=${interval}&limit=${limit}`;
                 const res = await fetch(url);
 
-                // Allow network errors to be caught below to trigger retry
                 if (!res.ok) throw new Error(`Network error: ${res.status}`);
 
                 const json = await res.json();
 
                 if (json.retCode !== 0) {
-                    // API errors might be permanent (e.g. invalid symbol), but some (rate limit) might be transient.
-                    // For safety, if it's a "Rate limit" or similar, we might want to retry.
-                    // But generally, retMsg errors are better just thrown or retried cautiously.
-                    // Let's retry only on specific system errors or just throw for logic errors.
-                    // For simplicity and consistency with fetchKline, we throw.
-                    // If we want to retry on 429/500, we should check that.
-                    // But standard 'retMsg' usually implies logic error.
                     throw new Error(json.retMsg || "Bybit API returned error");
                 }
 
@@ -200,9 +261,6 @@ const Api = {
                     return [];
                 }
 
-                // Bybit returns [startTime, open, high, low, close, volume, turnover]
-                // Lightweight charts needs { time, open, high, low, close }
-                // Bybit returns newest first, we need to sort to oldest first
                 return json.result.list.map(k => ({
                     time: parseInt(k[0]) / 1000, // Unix Timestamp (seconds)
                     open: parseFloat(k[1]),
@@ -214,10 +272,10 @@ const Api = {
             } catch (e) {
                 retries--;
                 if (retries === 0) {
-                    console.error("Chart data fetch failed after retries", e);
+                    ErrorHandler.logError('fetchHistory', e);
                     throw e;
                 }
-                await Utils.wait(300);
+                await Utils.wait(Config.RETRY_DELAY_MS);
             }
         }
     }
@@ -867,11 +925,11 @@ class Analyzer {
         if (!hours) {
             const val = parseFloat(UI.els.customVal.value);
             const unit = UI.els.customUnit.value;
-            if (!val || val <= 0) throw new Error("Invalid Timeframe");
 
-            if (unit === 'm') hours = val / 60;
-            else if (unit === 'd') hours = val * 24;
-            else hours = val;
+            const validation = Validator.validateTimeframe(val, unit);
+            if (!validation.valid) throw new Error(validation.error);
+
+            hours = validation.hours;
         }
         return { hours, is24h: hours === 24 };
     }
@@ -881,10 +939,22 @@ class Analyzer {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
-                this.watchlists = JSON.parse(e.target.result);
+                const data = JSON.parse(e.target.result);
+                const validation = Validator.validateWatchlist(data);
+
+                if (!validation.valid) {
+                    alert(`❌ ${validation.error}`);
+                    this.clearActiveFile();
+                    return;
+                }
+
+                this.watchlists = data;
                 this.currentFile = file.name;
                 this.updateActiveState(true);
-            } catch (err) { alert('Invalid JSON'); }
+            } catch (err) {
+                alert('Invalid JSON');
+                ErrorHandler.logError('handleFileUpload', err);
+            }
         };
         reader.readAsText(file);
     }
@@ -1000,7 +1070,7 @@ class Analyzer {
 
         const tickerMap = new Map((await Api.fetchAllTickers()).map(t => [t.symbol, t]));
 
-        return Utils.processWithConcurrency(symbols, 30, async (sym) => {
+        return Utils.processWithConcurrency(symbols, Config.CONCURRENCY_LIMIT, async (sym) => {
             const launchTime = launchTimeMap.get(sym);
             if (launchTime && launchTime > cutoffTime) return null;
 
@@ -1138,4 +1208,5 @@ class Analyzer {
     }
 }
 
+console.log(`🚀 Bybit Analyzer v${Config.VERSION} initialized`);
 new Analyzer();
