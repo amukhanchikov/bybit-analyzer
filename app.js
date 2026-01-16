@@ -75,12 +75,12 @@ const Validator = {
         if (isNaN(num) || num <= 0) return { valid: false, error: 'Timeframe must be positive' };
         if (!['m', 'h', 'd'].includes(unit)) return { valid: false, error: 'Invalid unit' };
 
-        // Calculate max hours (1 year approx)
+        // Calculate hours
         let hours = num;
         if (unit === 'm') hours /= 60;
         if (unit === 'd') hours *= 24;
 
-        if (hours > 8760) return { valid: false, error: 'Timeframe cannot exceed 1 year' };
+        // REMOVED 1 year limit
         return { valid: true, hours };
     }
 };
@@ -156,6 +156,12 @@ const Utils = {
         } else { // > 7 days
             interval = 'D'; // Daily
             limit = Math.ceil(hours / 24);
+
+            // If limit exceeds 1000 (Bybit max), switch to Weekly
+            if (limit > 1000) {
+                interval = 'W';
+                limit = Math.ceil(hours / (24 * 7));
+            }
         }
 
         if (limit > 1000) limit = 1000;
